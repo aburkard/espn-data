@@ -17,7 +17,8 @@ logger = logging.getLogger("espn_data")
 
 # Constants
 BASE_DIR = Path(__file__).parent
-DATA_DIR = BASE_DIR / "data"
+PROJECT_ROOT = BASE_DIR.parent
+DATA_DIR = PROJECT_ROOT / "data"
 
 # URL templates based on gender
 URL_TEMPLATES = {
