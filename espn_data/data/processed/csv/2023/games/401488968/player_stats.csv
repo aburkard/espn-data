@@ -1,25 +1,25 @@
-game_id,team_id,team_name,team_abbreviation,player_id,player_name,position,jersey,starter,did_not_play,MIN,FG,FG_MADE,FG_ATT,FG_PCT,3PT,3PT_MADE,3PT_ATT,3PT_PCT,FT,FT_MADE,FT_ATT,FT_PCT,OREB,DREB,REB,AST,STL,BLK,TO,PF,PTS
-401488968,52,Florida State Seminoles,FSU,4433546,Makayla Timpson,Forward,21,True,False,13.0,3-6,3.0,6.0,50.0,0-0,0.0,0.0,0.0,2-3,2.0,3.0,66.7,2.0,4.0,6.0,0.0,0.0,1.0,1.0,5.0,8.0
-401488968,52,Florida State Seminoles,FSU,4398609,Erin Howard,Forward,23,True,False,27.0,2-7,2.0,7.0,28.6,1-5,1.0,5.0,20.0,3-4,3.0,4.0,75.0,0.0,8.0,8.0,1.0,0.0,0.0,0.0,0.0,8.0
-401488968,52,Florida State Seminoles,FSU,4609797,Ta'Niya Latson,Guard,0,True,False,30.0,4-13,4.0,13.0,30.8,0-2,0.0,2.0,0.0,7-10,7.0,10.0,70.0,1.0,3.0,4.0,2.0,1.0,1.0,0.0,0.0,15.0
-401488968,52,Florida State Seminoles,FSU,4595844,Sara Bejedi,Guard,4,True,False,30.0,2-11,2.0,11.0,18.2,0-2,0.0,2.0,0.0,2-2,2.0,2.0,100.0,1.0,4.0,5.0,0.0,1.0,0.0,2.0,4.0,6.0
-401488968,52,Florida State Seminoles,FSU,4398765,Jazmine Massengill,Guard,1,True,False,18.0,1-3,1.0,3.0,33.3,0-1,0.0,1.0,0.0,0-1,0.0,1.0,0.0,1.0,1.0,2.0,1.0,1.0,0.0,1.0,1.0,2.0
-401488968,52,Florida State Seminoles,FSU,4683035,Mariana Valenzuela,Forward,5,False,False,13.0,0-1,0.0,1.0,0.0,0-1,0.0,1.0,0.0,0-0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.0,1.0,0.0
-401488968,52,Florida State Seminoles,FSU,4398583,Valencia Myers,Forward,32,False,False,27.0,5-8,5.0,8.0,62.5,0-0,0.0,0.0,0.0,8-10,8.0,10.0,80.0,1.0,5.0,6.0,0.0,2.0,2.0,0.0,2.0,18.0
-401488968,52,Florida State Seminoles,FSU,4433520,O'Mariah Gordon,Guard,3,False,False,17.0,0-4,0.0,4.0,0.0,0-1,0.0,1.0,0.0,0-0,0.0,0.0,0.0,1.0,1.0,2.0,0.0,1.0,0.0,1.0,3.0,0.0
-401488968,52,Florida State Seminoles,FSU,4400176,Taylor O'Brien,Guard,11,False,False,25.0,2-5,2.0,5.0,40.0,0-1,0.0,1.0,0.0,0-1,0.0,1.0,0.0,0.0,1.0,1.0,2.0,0.0,0.0,1.0,2.0,4.0
-401488968,52,Florida State Seminoles,FSU,5106230,Brianna Turnage,Guard,2,False,True,,,,,,,,,,,,,,,,,,,,,,
-401488968,154,Wake Forest Demon Deacons,WAKE,4596343,Demeara Hinds,Forward,25,True,False,9.0,1-1,1.0,1.0,100.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,3.0,2.0,5.0,0.0,0.0,2.0,2.0,5.0,2.0
-401488968,154,Wake Forest Demon Deacons,WAKE,4433706,Olivia Summiel,Guard,20,True,False,27.0,1-9,1.0,9.0,11.1,0-6,0.0,6.0,0.0,2-2,2.0,2.0,100.0,0.0,5.0,5.0,0.0,1.0,3.0,1.0,3.0,4.0
-401488968,154,Wake Forest Demon Deacons,WAKE,4712103,Elise Williams,Guard,21,True,False,30.0,5-16,5.0,16.0,31.2,3-7,3.0,7.0,42.9,2-3,2.0,3.0,66.7,2.0,10.0,12.0,1.0,0.0,0.0,1.0,3.0,15.0
-401488968,154,Wake Forest Demon Deacons,WAKE,4433667,Kaia Harrison,Guard,2,True,False,38.0,1-8,1.0,8.0,12.5,0-0,0.0,0.0,0.0,1-2,1.0,2.0,50.0,0.0,4.0,4.0,3.0,0.0,0.0,1.0,4.0,3.0
-401488968,154,Wake Forest Demon Deacons,WAKE,4433481,Jewel Spear,Guard,24,True,False,32.0,3-8,3.0,8.0,37.5,1-5,1.0,5.0,20.0,4-5,4.0,5.0,80.0,1.0,3.0,4.0,1.0,0.0,0.0,5.0,4.0,11.0
-401488968,154,Wake Forest Demon Deacons,WAKE,4398862,Niyah Becker,Forward,14,False,False,28.0,5-9,5.0,9.0,55.6,0-0,0.0,0.0,0.0,2-3,2.0,3.0,66.7,1.0,3.0,4.0,1.0,3.0,0.0,2.0,4.0,12.0
-401488968,154,Wake Forest Demon Deacons,WAKE,4912216,Marta Morales Romero,Guard,30,False,False,8.0,0-2,0.0,2.0,0.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,0.0
-401488968,154,Wake Forest Demon Deacons,WAKE,4691695,Raegyn Conley,Guard,11,False,False,2.0,1-1,1.0,1.0,100.0,1-1,1.0,1.0,100.0,0-0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.0
-401488968,154,Wake Forest Demon Deacons,WAKE,4683030,Alyssa Andrews,Guard,0,False,False,12.0,1-2,1.0,2.0,50.0,0-1,0.0,1.0,0.0,0-0,0.0,0.0,0.0,0.0,1.0,1.0,0.0,0.0,0.0,1.0,0.0,2.0
-401488968,154,Wake Forest Demon Deacons,WAKE,4433654,Alexandria Scruggs,Guard,32,False,False,14.0,3-4,3.0,4.0,75.0,0-1,0.0,1.0,0.0,2-2,2.0,2.0,100.0,0.0,2.0,2.0,1.0,0.0,0.0,0.0,2.0,8.0
-401488968,154,Wake Forest Demon Deacons,WAKE,4433530,Malaya Cowles,Forward,5,False,True,,,,,,,,,,,,,,,,,,,,,,
-401488968,154,Wake Forest Demon Deacons,WAKE,5107759,Kate Deeble,Guard,10,False,True,,,,,,,,,,,,,,,,,,,,,,
-401488968,154,Wake Forest Demon Deacons,WAKE,4596342,Aliah McWhorter,Guard,4,False,True,,,,,,,,,,,,,,,,,,,,,,
-401488968,154,Wake Forest Demon Deacons,WAKE,4594399,Mack Maier,Guard,3,False,True,,,,,,,,,,,,,,,,,,,,,,
+game_id,team_id,team_name,team_abbreviation,player_id,player_name,position,jersey,starter,did_not_play,ejected,MIN,FG,FG_MADE,FG_ATT,FG_PCT,3PT,3PT_MADE,3PT_ATT,3PT_PCT,FT,FT_MADE,FT_ATT,FT_PCT,OREB,DREB,REB,AST,STL,BLK,TO,PF,PTS
+401488968,52,Florida State Seminoles,FSU,4433546,Makayla Timpson,Forward,21,True,False,False,13.0,3-6,3.0,6.0,50.0,0-0,0.0,0.0,0.0,2-3,2.0,3.0,66.7,2.0,4.0,6.0,0.0,0.0,1.0,1.0,5.0,8.0
+401488968,52,Florida State Seminoles,FSU,4398609,Erin Howard,Forward,23,True,False,False,27.0,2-7,2.0,7.0,28.6,1-5,1.0,5.0,20.0,3-4,3.0,4.0,75.0,0.0,8.0,8.0,1.0,0.0,0.0,0.0,0.0,8.0
+401488968,52,Florida State Seminoles,FSU,4609797,Ta'Niya Latson,Guard,0,True,False,False,30.0,4-13,4.0,13.0,30.8,0-2,0.0,2.0,0.0,7-10,7.0,10.0,70.0,1.0,3.0,4.0,2.0,1.0,1.0,0.0,0.0,15.0
+401488968,52,Florida State Seminoles,FSU,4595844,Sara Bejedi,Guard,4,True,False,False,30.0,2-11,2.0,11.0,18.2,0-2,0.0,2.0,0.0,2-2,2.0,2.0,100.0,1.0,4.0,5.0,0.0,1.0,0.0,2.0,4.0,6.0
+401488968,52,Florida State Seminoles,FSU,4398765,Jazmine Massengill,Guard,1,True,False,False,18.0,1-3,1.0,3.0,33.3,0-1,0.0,1.0,0.0,0-1,0.0,1.0,0.0,1.0,1.0,2.0,1.0,1.0,0.0,1.0,1.0,2.0
+401488968,52,Florida State Seminoles,FSU,4683035,Mariana Valenzuela,Forward,5,False,False,False,13.0,0-1,0.0,1.0,0.0,0-1,0.0,1.0,0.0,0-0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,2.0,1.0,0.0
+401488968,52,Florida State Seminoles,FSU,4398583,Valencia Myers,Forward,32,False,False,False,27.0,5-8,5.0,8.0,62.5,0-0,0.0,0.0,0.0,8-10,8.0,10.0,80.0,1.0,5.0,6.0,0.0,2.0,2.0,0.0,2.0,18.0
+401488968,52,Florida State Seminoles,FSU,4433520,O'Mariah Gordon,Guard,3,False,False,False,17.0,0-4,0.0,4.0,0.0,0-1,0.0,1.0,0.0,0-0,0.0,0.0,0.0,1.0,1.0,2.0,0.0,1.0,0.0,1.0,3.0,0.0
+401488968,52,Florida State Seminoles,FSU,4400176,Taylor O'Brien,Guard,11,False,False,False,25.0,2-5,2.0,5.0,40.0,0-1,0.0,1.0,0.0,0-1,0.0,1.0,0.0,0.0,1.0,1.0,2.0,0.0,0.0,1.0,2.0,4.0
+401488968,52,Florida State Seminoles,FSU,5106230,Brianna Turnage,Guard,2,False,True,False,,,,,,,,,,,,,,,,,,,,,,
+401488968,154,Wake Forest Demon Deacons,WAKE,4596343,Demeara Hinds,Forward,25,True,False,False,9.0,1-1,1.0,1.0,100.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,3.0,2.0,5.0,0.0,0.0,2.0,2.0,5.0,2.0
+401488968,154,Wake Forest Demon Deacons,WAKE,4433706,Olivia Summiel,Guard,20,True,False,False,27.0,1-9,1.0,9.0,11.1,0-6,0.0,6.0,0.0,2-2,2.0,2.0,100.0,0.0,5.0,5.0,0.0,1.0,3.0,1.0,3.0,4.0
+401488968,154,Wake Forest Demon Deacons,WAKE,4712103,Elise Williams,Guard,21,True,False,False,30.0,5-16,5.0,16.0,31.2,3-7,3.0,7.0,42.9,2-3,2.0,3.0,66.7,2.0,10.0,12.0,1.0,0.0,0.0,1.0,3.0,15.0
+401488968,154,Wake Forest Demon Deacons,WAKE,4433667,Kaia Harrison,Guard,2,True,False,False,38.0,1-8,1.0,8.0,12.5,0-0,0.0,0.0,0.0,1-2,1.0,2.0,50.0,0.0,4.0,4.0,3.0,0.0,0.0,1.0,4.0,3.0
+401488968,154,Wake Forest Demon Deacons,WAKE,4433481,Jewel Spear,Guard,24,True,False,False,32.0,3-8,3.0,8.0,37.5,1-5,1.0,5.0,20.0,4-5,4.0,5.0,80.0,1.0,3.0,4.0,1.0,0.0,0.0,5.0,4.0,11.0
+401488968,154,Wake Forest Demon Deacons,WAKE,4398862,Niyah Becker,Forward,14,False,False,False,28.0,5-9,5.0,9.0,55.6,0-0,0.0,0.0,0.0,2-3,2.0,3.0,66.7,1.0,3.0,4.0,1.0,3.0,0.0,2.0,4.0,12.0
+401488968,154,Wake Forest Demon Deacons,WAKE,4912216,Marta Morales Romero,Guard,30,False,False,False,8.0,0-2,0.0,2.0,0.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,0.0
+401488968,154,Wake Forest Demon Deacons,WAKE,4691695,Raegyn Conley,Guard,11,False,False,False,2.0,1-1,1.0,1.0,100.0,1-1,1.0,1.0,100.0,0-0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,3.0
+401488968,154,Wake Forest Demon Deacons,WAKE,4683030,Alyssa Andrews,Guard,0,False,False,False,12.0,1-2,1.0,2.0,50.0,0-1,0.0,1.0,0.0,0-0,0.0,0.0,0.0,0.0,1.0,1.0,0.0,0.0,0.0,1.0,0.0,2.0
+401488968,154,Wake Forest Demon Deacons,WAKE,4433654,Alexandria Scruggs,Guard,32,False,False,False,14.0,3-4,3.0,4.0,75.0,0-1,0.0,1.0,0.0,2-2,2.0,2.0,100.0,0.0,2.0,2.0,1.0,0.0,0.0,0.0,2.0,8.0
+401488968,154,Wake Forest Demon Deacons,WAKE,4433530,Malaya Cowles,Forward,5,False,True,False,,,,,,,,,,,,,,,,,,,,,,
+401488968,154,Wake Forest Demon Deacons,WAKE,5107759,Kate Deeble,Guard,10,False,True,False,,,,,,,,,,,,,,,,,,,,,,
+401488968,154,Wake Forest Demon Deacons,WAKE,4596342,Aliah McWhorter,Guard,4,False,True,False,,,,,,,,,,,,,,,,,,,,,,
+401488968,154,Wake Forest Demon Deacons,WAKE,4594399,Mack Maier,Guard,3,False,True,False,,,,,,,,,,,,,,,,,,,,,,

@@ -1,2 +1,2 @@
-game_id,date,venue,venue_location,attendance,status,clock,neutral_site
-401488960,2023-02-19T19:00Z,Tucker Center,"Tallahassee, FL",2990,,,False
+game_id,date,venue_id,venue,venue_location,venue_city,venue_state,attendance,status,state,neutral_site,format,completed,broadcast,broadcast_market,conference
+401488960,2023-02-19T19:00Z,1952,Tucker Center,"Tallahassee, FL",Tallahassee,FL,2990,Final,post,False,"{'regulation': {'periods': 4, 'displayName': 'Quarter', 'slug': 'quarter', 'clock': 600.0}, 'overtime': {'clock': 300.0}}",True,ACC Network,National,Atlantic Coast Conference

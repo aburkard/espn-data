@@ -109,8 +109,11 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
     """
     details = {
         "date": None,
+        "venue_id": None,
         "venue_name": None,
         "venue_location": None,
+        "venue_city": None,
+        "venue_state": None,
         "attendance": None,
         "teams": [],
         "officials": [],  # Added officials list
@@ -184,12 +187,15 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
     # Extract venue information from gameInfo
     if 'gameInfo' in game_data and 'venue' in game_data['gameInfo']:
         venue = game_data['gameInfo']['venue']
+        details["venue_id"] = venue.get('id')
         details["venue_name"] = venue.get('fullName')
 
         # Get venue location
         if 'address' in venue:
             city = venue['address'].get('city', '')
             state = venue['address'].get('state', '')
+            details["venue_city"] = city
+            details["venue_state"] = state
             if city and state:
                 details["venue_location"] = f"{city}, {state}"
 
@@ -255,10 +261,16 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
                     game_id,
                 "date":
                     game_details["date"],
+                "venue_id":
+                    game_details["venue_id"],
                 "venue":
                     game_details["venue_name"],
                 "venue_location":
                     game_details["venue_location"],
+                "venue_city":
+                    game_details["venue_city"],
+                "venue_state":
+                    game_details["venue_state"],
                 "attendance":
                     game_details["attendance"],
                 "status": (game_details.get("status", {}).get("description", "") or
@@ -274,6 +286,8 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
                     game_details.get("status", {}).get("completed", False),
                 "broadcast":
                     ", ".join([b.get("media", "") for b in game_details.get("broadcasts", []) if b.get("media")]),
+                "broadcast_market":
+                    ", ".join([b.get("market", "") for b in game_details.get("broadcasts", []) if b.get("market")]),
                 "conference":
                     game_details.get("groups", {}).get("name", ""),
             }
@@ -381,6 +395,7 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
                                         "jersey": player_jersey,
                                         "starter": starter,
                                         "did_not_play": dnp,
+                                        "ejected": athlete.get('ejected', False),
                                     }
 
                                     # Add stats

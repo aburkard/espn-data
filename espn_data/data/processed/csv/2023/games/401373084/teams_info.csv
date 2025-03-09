@@ -1,3 +1,0 @@
-game_id,team_id,team_name,team_abbreviation,team_location,team_nickname,team_color,home_away,score,winner
-401373084,41,UConn Huskies,CONN,UConn,Huskies,0c2340,home,95,True
-401373084,8,Arkansas Razorbacks,ARK,Arkansas,Razorbacks,a41f35,away,80,False
