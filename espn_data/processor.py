@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
 from concurrent.futures import ProcessPoolExecutor
 from tqdm import tqdm
+from datetime import datetime
+import argparse
 
 from espn_data.utils import (load_json, save_json, get_teams_file, get_schedules_dir, get_games_dir, get_processed_dir,
                              get_csv_dir, get_parquet_dir, get_csv_teams_file, get_parquet_teams_file,
@@ -34,54 +36,64 @@ BASE_DIR = Path(__file__).parent.parent  # Go up one level to workspace root
 DATA_DIR = BASE_DIR / "data"
 
 
-def process_teams_data() -> pd.DataFrame:
+def process_teams_data(force: bool = False) -> pd.DataFrame:
     """
-    Process teams data into a structured DataFrame.
+    Process teams data into a structured dataframe.
     
+    Args:
+        force: If True, force reprocessing even if processed files exist
+        
     Returns:
-        DataFrame with team information
+        DataFrame with teams information
     """
+    # Check if processed teams data exists
+    csv_teams_file = get_csv_teams_file()
+    if not force and csv_teams_file.exists():
+        logger.info("Using cached processed teams data")
+        return pd.read_csv(csv_teams_file)
+
     logger.info("Processing teams data")
 
-    # Load from the top-level teams file
-    teams_data = load_json(get_teams_file())
-    if not teams_data:
-        logger.error("No teams data found")
+    # Get the teams data file
+    teams_file = get_teams_file()
+
+    if not teams_file.exists():
+        logger.warning("Teams data file not found")
         return pd.DataFrame()
 
-    # Extract relevant fields
-    teams_list = []
-    for team_entry in teams_data:
-        try:
-            # Handle nested 'team' structure in the raw data
-            team = team_entry.get("team", team_entry)
+    teams_data = load_json(teams_file)
 
-            team_dict = {
-                "team_id": team.get("id", ""),
-                "uid": team.get("uid", ""),
-                "slug": team.get("slug", ""),
-                "abbreviation": team.get("abbreviation", ""),
-                "display_name": team.get("displayName", ""),
-                "short_display_name": team.get("shortDisplayName", ""),
-                "name": team.get("name", ""),
-                "nickname": team.get("nickname", ""),
-                "location": team.get("location", ""),
-                "color": team.get("color", ""),
-                "alternate_color": team.get("alternateColor", ""),
-                "is_active": team.get("isActive", True),
-                "is_all_star": team.get("isAllStar", False),
-                "logo": team.get("logos", [{}])[0].get("href", "") if team.get("logos") else "",
-            }
-            teams_list.append(team_dict)
-        except Exception as e:
-            logger.error(f"Error processing team: {e}")
+    if not teams_data:
+        logger.warning("No teams data found")
+        return pd.DataFrame()
+
+    # Extract relevant team info
+    teams = []
+    for team in teams_data:
+        team_info = {
+            "id": team.get("id", ""),
+            "slug": team.get("slug", ""),
+            "abbreviation": team.get("abbreviation", ""),
+            "display_name": team.get("displayName", ""),
+            "short_name": team.get("shortDisplayName", ""),
+            "name": team.get("name", ""),
+            "nickname": team.get("nickname", ""),
+            "location": team.get("location", ""),
+            "color": team.get("color", ""),
+            "alternate_color": team.get("alternateColor", ""),
+            "logo": team.get("logos", [{}])[0].get("href", "") if "logos" in team and team["logos"] else "",
+            "conference_id": team.get("conference", {}).get("id", "") if "conference" in team else "",
+            "conference_name": team.get("conference", {}).get("name", "") if "conference" in team else "",
+        }
+        teams.append(team_info)
 
     # Convert to DataFrame
-    teams_df = pd.DataFrame(teams_list)
+    teams_df = pd.DataFrame(teams)
 
-    # Save to CSV and Parquet at the top level
     if not teams_df.empty:
-        teams_df.to_csv(get_csv_teams_file(), index=False)
+        # Save to CSV and Parquet at the top level
+        os.makedirs(csv_teams_file.parent, exist_ok=True)
+        teams_df.to_csv(csv_teams_file, index=False)
         teams_df.to_parquet(get_parquet_teams_file(), index=False)
         logger.info(f"Processed {len(teams_df)} teams")
     else:
@@ -231,7 +243,7 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
     return details
 
 
-def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
+def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[str, Any]:
     """
     Process game data into structured format with game info, team stats, and play-by-play data.
     For each game, saves individual files for each data type.
@@ -239,10 +251,17 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
     Args:
         game_id: The ESPN game ID
         season: The season this game belongs to
+        force: If True, force reprocessing even if processed files exist
         
     Returns:
         Dictionary containing processed game data (also saved to individual files)
     """
+    # Check if processed data already exists
+    csv_game_dir = get_csv_games_dir(season) / game_id
+    if not force and csv_game_dir.exists() and (csv_game_dir / "game_info.csv").exists():
+        logger.info(f"Using cached processed data for game {game_id}")
+        return {"game_id": game_id, "season": season, "processed": True}
+
     try:
         # Get raw game data
         data_path = get_games_dir(season) / f"{game_id}.json"
@@ -733,111 +752,107 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
 
 
 def process_game_with_season(args):
-    """Helper function to unpack arguments for process_game_data to work with multiprocessing."""
-    game_id, season = args
-    return process_game_data(game_id, season)
-
-
-def process_all_games(season: int, max_workers: int = 4) -> Dict[str, pd.DataFrame]:
     """
-    Process all downloaded game data for a specific season.
+    Helper function to unpack arguments for process_game_data.
+    
+    Args:
+        args: Tuple of (game_id, season, force)
+    
+    Returns:
+        Result of process_game_data
+    """
+    game_id, season, force = args
+    return process_game_data(game_id, season, force)
+
+
+def process_all_games(season: int, max_workers: int = 4, force: bool = False) -> Dict[str, pd.DataFrame]:
+    """
+    Process all games for a specific season.
+    
     Each game data is processed and saved to individual files.
     
     Args:
-        season: The season to process
+        season: Season year to process
         max_workers: Maximum number of concurrent processes
+        force: If True, force reprocessing even if processed files exist
         
     Returns:
-        Dictionary of summary DataFrames
+        Dictionary with dataframes for this season
     """
-    logger.info(f"Processing all game data for season {season}")
+    logger.info(f"Processing games for season {season}")
 
-    # Find all game files for this season
-    games_dir = get_games_dir(season)
-    if not games_dir.exists():
-        logger.warning(f"No games directory found for season {season}")
+    # Get raw data directory for this season
+    raw_games_dir = get_games_dir(season)
+
+    if not os.path.exists(raw_games_dir):
+        logger.warning(f"No raw game data found for season {season}")
         return {"game_summary": pd.DataFrame()}
 
-    game_files = list(games_dir.glob("*.json"))
-    game_ids = [f.stem for f in game_files]
+    # Get list of game files
+    game_files = [f for f in os.listdir(raw_games_dir) if f.endswith('.json')]
+    game_ids = [os.path.splitext(f)[0] for f in game_files]
 
     logger.info(f"Found {len(game_ids)} games to process for season {season}")
 
     # Process games in parallel - each game will save its own files
-    game_data_with_season = [(game_id, season) for game_id in game_ids]
+    results = []
+    if game_ids:
+        with ProcessPoolExecutor(max_workers=max_workers) as executor:
+            # Create argument list for each game
+            args_list = [(game_id, season, force) for game_id in game_ids]
 
-    with ProcessPoolExecutor(max_workers=max_workers) as executor:
-        # Use the helper function instead of a lambda
-        results = list(
-            tqdm(executor.map(process_game_with_season, game_data_with_season),
-                 total=len(game_data_with_season),
-                 desc=f"Processing games for {season}"))
-
-    # Create summary DataFrames (small, just references to the individual files)
-    summary_games = []
-
-    for game_id in game_ids:
-        csv_game_path = get_csv_games_dir(season) / game_id
-        parquet_game_path = get_parquet_games_dir(season) / game_id
-
-        if (parquet_game_path / "game_info.parquet").exists():
-            summary_games.append({
-                "game_id": game_id,
-                "season": season,
-                "processed": True,
-                "csv_path": str(csv_game_path),
-                "parquet_path": str(parquet_game_path),
-                "has_game_info": (parquet_game_path / "game_info.parquet").exists(),
-                "has_teams_info": (parquet_game_path / "teams_info.parquet").exists(),
-                "has_player_stats": (parquet_game_path / "player_stats.parquet").exists(),
-                "has_team_stats": (parquet_game_path / "team_stats.parquet").exists(),
-                "has_play_by_play": (parquet_game_path / "play_by_play.parquet").exists(),
-                "has_officials": (parquet_game_path / "officials.parquet").exists(),
-            })
-        else:
-            summary_games.append({
-                "game_id": game_id,
-                "season": season,
-                "processed": False,
-                "csv_path": str(csv_game_path),
-                "parquet_path": str(parquet_game_path),
-            })
+            # Process games in parallel
+            for result in executor.map(process_game_with_season, args_list):
+                results.append(result)
 
     # Create and save game summary dataframe for this season
-    summary_df = pd.DataFrame(summary_games)
+    processed_games = [r for r in results if r.get("processed", False)]
+    logger.info(f"Successfully processed {len(processed_games)} of {len(game_ids)} games")
 
     # Save the summary to both CSV and Parquet formats
+    data = [{
+        "game_id": r.get("game_id", ""),
+        "season": season,
+        "processed": r.get("processed", False),
+        "error": r.get("error", "")
+    } for r in results]
+    summary_df = pd.DataFrame(data)
+
+    # Ensure directories exist
     csv_season_dir = get_csv_season_dir(season)
     parquet_season_dir = get_parquet_season_dir(season)
-
     os.makedirs(csv_season_dir, exist_ok=True)
     os.makedirs(parquet_season_dir, exist_ok=True)
 
-    if not summary_df.empty:
-        summary_df.to_csv(csv_season_dir / "game_summary.csv", index=False)
-        summary_df.to_parquet(parquet_season_dir / "game_summary.parquet", index=False)
-
-    logger.info(
-        f"Processed {len(summary_df)} games for season {season}, created individual game files and summary index")
+    # Save summary files
+    summary_df.to_csv(csv_season_dir / "game_summary.csv", index=False)
+    summary_df.to_parquet(parquet_season_dir / "game_summary.parquet", index=False)
 
     return {"game_summary": summary_df}
 
 
-def process_schedules(season: int) -> pd.DataFrame:
+def process_schedules(season: int, force: bool = False) -> pd.DataFrame:
     """
-    Process schedule data into a structured DataFrame for a specific season.
+    Process schedules for all teams for a specific season.
     
     Args:
-        season: The season to process
+        season: Season year to process
+        force: If True, force reprocessing even if processed files exist
         
     Returns:
-        DataFrame with schedule information
+        DataFrame with all schedules for this season
     """
-    logger.info(f"Processing schedule data for season {season}")
+    logger.info(f"Processing schedules for season {season}")
 
-    all_games = []
+    # Check if processed schedules already exist
+    csv_season_dir = get_csv_season_dir(season)
+    csv_schedules_file = csv_season_dir / "schedules.csv"
 
-    # Get the schedules directory for this season
+    if not force and csv_schedules_file.exists():
+        logger.info(f"Using cached schedules for season {season}")
+        return pd.read_csv(csv_schedules_file)
+
+    # Get all schedule files for this season
     schedules_dir = get_schedules_dir(season)
     if not schedules_dir.exists():
         logger.warning(f"No schedules directory found for season {season}")
@@ -845,106 +860,79 @@ def process_schedules(season: int) -> pd.DataFrame:
 
     schedule_files = list(schedules_dir.glob("*.json"))
 
-    for schedule_file in tqdm(schedule_files, desc=f"Processing schedules for season {season}"):
-        try:
-            team_id = schedule_file.stem
-            schedule_data = load_json(schedule_file)
+    if not schedule_files:
+        logger.warning(f"No schedule files found for season {season}")
+        return pd.DataFrame()
 
-            for game in schedule_data:
-                game_info = {
-                    "team_id":
-                        team_id,
-                    "game_id":
-                        game.get("id", ""),
-                    "season":
-                        season,
-                    "date":
-                        game.get("date", ""),
-                    "name":
-                        game.get("name", ""),
-                    "short_name":
-                        game.get("shortName", ""),
-                    "is_conference_game":
-                        game.get("conference", {}).get("isConference", False) if "conference" in game else False,
-                    "neutral_site":
-                        game.get("neutralSite", False),
-                    "venue_name":
-                        game.get("competitions", [{}])[0].get("venue", {}).get("fullName", "")
-                        if "competitions" in game and game["competitions"] else "",
-                    "venue_city":
-                        game.get("competitions", [{}])[0].get("venue", {}).get("address", {}).get("city", "")
-                        if "competitions" in game and game["competitions"] else "",
-                    "venue_state":
-                        game.get("competitions", [{}])[0].get("venue", {}).get("address", {}).get("state", "")
-                        if "competitions" in game and game["competitions"] else "",
-                    "completed":
-                        game.get("status", {}).get("type", {}).get("completed", False)
-                        if "status" in game and "type" in game["status"] else False,
-                    "away_team_id":
-                        game.get("competitions", [{}])[0].get("competitors", [{}])[1].get("id", "")
-                        if "competitions" in game and game["competitions"] and
-                        len(game["competitions"][0].get("competitors", [])) > 1 else "",
-                    "away_team_name":
-                        game.get("competitions", [{}])[0].get("competitors", [{}])[1].get("team", {}).get("name", "")
-                        if "competitions" in game and game["competitions"] and
-                        len(game["competitions"][0].get("competitors", [])) > 1 else "",
-                    "away_team_abbrev":
-                        game.get("competitions", [{}])[0].get("competitors", [{}])[1].get("team", {}).get(
-                            "abbreviation", "") if "competitions" in game and game["competitions"] and
-                        len(game["competitions"][0].get("competitors", [])) > 1 else "",
-                    "away_score":
-                        game.get("competitions", [{}])[0].get("competitors", [{}])[1].get("score", "")
-                        if "competitions" in game and game["competitions"] and
-                        len(game["competitions"][0].get("competitors", [])) > 1 else "",
-                    "home_team_id":
-                        game.get("competitions", [{}])[0].get("competitors", [{}])[0].get("id", "")
-                        if "competitions" in game and game["competitions"] and
-                        len(game["competitions"][0].get("competitors", [])) > 0 else "",
-                    "home_team_name":
-                        game.get("competitions", [{}])[0].get("competitors", [{}])[0].get("team", {}).get("name", "")
-                        if "competitions" in game and game["competitions"] and
-                        len(game["competitions"][0].get("competitors", [])) > 0 else "",
-                    "home_team_abbrev":
-                        game.get("competitions", [{}])[0].get("competitors", [{}])[0].get("team", {}).get(
-                            "abbreviation", "") if "competitions" in game and game["competitions"] and
-                        len(game["competitions"][0].get("competitors", [])) > 0 else "",
-                    "home_score":
-                        game.get("competitions", [{}])[0].get("competitors", [{}])[0].get("score", "")
-                        if "competitions" in game and game["competitions"] and
-                        len(game["competitions"][0].get("competitors", [])) > 0 else "",
-                }
-                all_games.append(game_info)
+    logger.info(f"Found {len(schedule_files)} team schedule files for season {season}")
 
-        except Exception as e:
-            logger.error(f"Error processing schedule for team {schedule_file.stem} in season {season}: {e}")
+    all_games = []
 
-    # Convert to DataFrame
+    # Process each team's schedule
+    for schedule_file in schedule_files:
+        team_id = schedule_file.stem
+        schedule_data = load_json(schedule_file)
+
+        if not schedule_data:
+            continue
+
+        for event in schedule_data.get("events", []):
+            event_id = event.get("id", "")
+            event_date = event.get("date", "")
+
+            # Use string manipulation for dates - some entries might not follow ISO format
+            if event_date:
+                try:
+                    # Try to parse the date string
+                    dt = datetime.fromisoformat(event_date.replace('Z', '+00:00'))
+                    event_date = dt.date().isoformat()
+                except (ValueError, TypeError):
+                    # If parsing fails, just use the string as is
+                    pass
+
+            for competition in event.get("competitions", []):
+                game_id = competition.get("id", "")
+
+                for team_data in competition.get("competitors", []):
+                    opponent_id = team_data.get("id", "")
+
+                    if opponent_id != team_id:
+                        all_games.append({
+                            "team_id": team_id,
+                            "game_id": game_id,
+                            "event_id": event_id,
+                            "event_date": event_date,
+                            "season": season,
+                            "opponent_id": opponent_id
+                        })
+
+    # Convert to dataframe
     schedules_df = pd.DataFrame(all_games)
 
-    # Save to CSV and Parquet in the season directory
-    csv_season_dir = get_csv_season_dir(season)
-    parquet_season_dir = get_parquet_season_dir(season)
-
-    os.makedirs(csv_season_dir, exist_ok=True)
-    os.makedirs(parquet_season_dir, exist_ok=True)
-
     if not schedules_df.empty:
-        schedules_df.to_csv(csv_season_dir / "schedules.csv", index=False)
+        # Save to CSV and Parquet in the season directory
+        os.makedirs(csv_season_dir, exist_ok=True)
+
+        parquet_season_dir = get_parquet_season_dir(season)
+        os.makedirs(parquet_season_dir, exist_ok=True)
+
+        # Save files
+        schedules_df.to_csv(csv_schedules_file, index=False)
         schedules_df.to_parquet(parquet_season_dir / "schedules.parquet", index=False)
-        logger.info(f"Processed {len(schedules_df)} schedule entries for season {season}")
     else:
         logger.warning(f"No schedule data to save for season {season}")
 
     return schedules_df
 
 
-def process_season_data(season: int, max_workers: int = 4) -> Dict[str, Any]:
+def process_season_data(season: int, max_workers: int = 4, force: bool = False) -> Dict[str, Any]:
     """
     Process all data for a specific season.
     
     Args:
         season: The season year to process
         max_workers: Maximum number of concurrent processes
+        force: If True, force reprocessing even if processed files exist
         
     Returns:
         Dictionary with processing summary
@@ -952,10 +940,10 @@ def process_season_data(season: int, max_workers: int = 4) -> Dict[str, Any]:
     logger.info(f"Processing data for season {season}")
 
     # Process schedules for this season
-    schedules_df = process_schedules(season)
+    schedules_df = process_schedules(season, force=force)
 
     # Process games for this season
-    game_summary = process_all_games(season, max_workers=max_workers)
+    game_summary = process_all_games(season, max_workers=max_workers, force=force)
 
     # Create summary statistics
     summary = {
@@ -974,60 +962,61 @@ def process_season_data(season: int, max_workers: int = 4) -> Dict[str, Any]:
     return summary
 
 
-def process_all_data(seasons: Optional[List[int]] = None, max_workers: int = 4, gender: str = None) -> None:
+def process_all_data(seasons: Optional[List[int]] = None,
+                     max_workers: int = 4,
+                     gender: str = None,
+                     force: bool = False) -> None:
     """
-    Process all basketball data for the specified gender and seasons.
+    Process all ESPN data for specified seasons.
     
     Args:
-        seasons: List of seasons to process (default: all seasons)
-        max_workers: Maximum number of concurrent processes
+        seasons: List of seasons to process (default: DEFAULT_SEASONS)
+        max_workers: Maximum concurrent processes for parallel processing
         gender: Either "mens" or "womens" (if None, uses current setting)
+        force: If True, force reprocessing even if processed files exist
     """
     if gender:
         set_gender(gender)
 
-    logger.info(f"Processing {get_current_gender()} basketball data")
+    logger.info(f"Starting data processing for {get_current_gender()} basketball")
 
-    # Determine which seasons to process
     if seasons is None:
         seasons = DEFAULT_SEASONS
 
-    # Get team data
-    teams_df = process_teams_data()
+    logger.info(f"Processing data for seasons {seasons}")
 
-    # Process each season (schedules and games)
+    # First, process teams data
+    process_teams_data(force)
+
+    # Then process each season
     for season in seasons:
-        process_season_data(season, max_workers)
+        process_season_data(season, max_workers=max_workers, force=force)
 
-    logger.info(f"Processed all {get_current_gender()} basketball data for seasons: {seasons}")
     logger.info(f"Data saved in: {get_processed_dir()}")
-    logger.info(f"CSV files stored in: {get_csv_dir()}")
-    logger.info(f"Parquet files stored in: {get_parquet_dir()}")
 
 
 def main() -> None:
-    """Main entry point for the processor."""
-    import argparse
-
+    """
+    Command-line interface for the processor.
+    """
     parser = argparse.ArgumentParser(description="Process ESPN college basketball data")
 
-    # Add gender parameter
-    parser.add_argument("--gender",
-                        type=str,
-                        choices=["mens", "womens"],
-                        default="womens",
-                        help="Gender of college basketball data to process")
-
-    parser.add_argument("--seasons", type=int, nargs="+", help="List of seasons to process (e.g., 2022 2023)")
+    parser.add_argument("--seasons", "-s", type=int, nargs="+", help="Seasons to process (e.g., 2022 2023)")
     parser.add_argument("--max-workers",
+                        "-w",
                         type=int,
                         default=4,
                         help="Maximum number of concurrent processes (default: 4)")
+    parser.add_argument("--gender",
+                        "-g",
+                        type=str,
+                        choices=["mens", "womens"],
+                        help="Gender (mens or womens, default is womens)")
+    parser.add_argument("--force", "-f", action="store_true", help="Force reprocessing even if files exist locally")
 
     args = parser.parse_args()
 
-    # Run the processor
-    process_all_data(seasons=args.seasons, max_workers=args.max_workers, gender=args.gender)
+    process_all_data(seasons=args.seasons, max_workers=args.max_workers, gender=args.gender, force=args.force)
 
 
 if __name__ == "__main__":
