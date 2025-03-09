@@ -1,0 +1,25 @@
+game_id,team_id,team_name,team_abbreviation,player_id,player_name,position,jersey,starter,did_not_play,MIN,FG,FG_MADE,FG_ATT,FG_PCT,3PT,3PT_MADE,3PT_ATT,3PT_PCT,FT,FT_MADE,FT_ATT,FT_PCT,OREB,DREB,REB,AST,STL,BLK,TO,PF,PTS
+401480237,2065,Bethune-Cookman Wildcats,BCU,4595728,Nia Jordan,Forward,20,True,False,16.0,2-3,2.0,3.0,66.7,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,1.0,1.0,2.0,0.0,1.0,0.0,1.0,1.0,4.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,5109579,O'Mariyah Tucker,Forward,10,True,False,29.0,5-10,5.0,10.0,50.0,1-3,1.0,3.0,33.3,0-1,0.0,1.0,0.0,3.0,2.0,5.0,0.0,1.0,0.0,1.0,2.0,11.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,5109577,D'Shantae Edwards,Guard,1,True,False,29.0,2-6,2.0,6.0,33.3,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,2.0,1.0,3.0,0.0,1.0,0.0,3.0,4.0,4.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,4595489,Morgan Beacham,Guard,4,True,False,17.0,2-13,2.0,13.0,15.4,0-3,0.0,3.0,0.0,0-1,0.0,1.0,0.0,1.0,2.0,3.0,0.0,1.0,1.0,3.0,2.0,4.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,4398897,Chanel Wilson,Guard,22,True,False,16.0,2-9,2.0,9.0,22.2,2-3,2.0,3.0,66.7,1-2,1.0,2.0,50.0,0.0,0.0,0.0,1.0,0.0,0.0,4.0,4.0,7.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,5109583,Camerah Langston,Forward,24,False,False,11.0,0-2,0.0,2.0,0.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,1.0,1.0,2.0,0.0,0.0,0.0,1.0,2.0,0.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,4914242,Tahisha Dossous,Forward,5,False,False,3.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,0.0,0.0,0.0,0.0,0.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,4900462,Kayla White,Forward,2,False,False,19.0,3-9,3.0,9.0,33.3,0-1,0.0,1.0,0.0,0-0,0.0,0.0,0.0,1.0,1.0,2.0,4.0,1.0,0.0,3.0,3.0,6.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,5109580,Al'lejah Moultry,Center,12,False,False,2.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,5109582,Daimoni Dorsey,Guard,23,False,False,8.0,0-2,0.0,2.0,0.0,0-1,0.0,1.0,0.0,0-0,0.0,0.0,0.0,0.0,1.0,1.0,0.0,0.0,0.0,0.0,1.0,0.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,5109581,Kerrighan Dunn,Guard,21,False,False,27.0,2-9,2.0,9.0,22.2,1-4,1.0,4.0,25.0,4-6,4.0,6.0,66.7,1.0,7.0,8.0,1.0,1.0,1.0,1.0,0.0,9.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,5109578,Karianna Woods,Guard,3,False,False,15.0,1-4,1.0,4.0,25.0,0-0,0.0,0.0,0.0,2-2,2.0,2.0,100.0,0.0,0.0,0.0,0.0,0.0,0.0,5.0,2.0,4.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,4900464,Yamani McCollough,Guard,11,False,False,8.0,0-5,0.0,5.0,0.0,0-2,0.0,2.0,0.0,1-2,1.0,2.0,50.0,1.0,0.0,1.0,0.0,1.0,0.0,0.0,1.0,1.0
+401480237,2065,Bethune-Cookman Wildcats,BCU,4900466,Kayla Clark,Center,25,False,True,,,,,,,,,,,,,,,,,,,,,,
+401480237,52,Florida State Seminoles,FSU,4433546,Makayla Timpson,Forward,21,True,False,24.0,8-12,8.0,12.0,66.7,0-0,0.0,0.0,0.0,7-10,7.0,10.0,70.0,6.0,6.0,12.0,2.0,2.0,3.0,2.0,3.0,23.0
+401480237,52,Florida State Seminoles,FSU,4398609,Erin Howard,Forward,23,True,False,26.0,6-14,6.0,14.0,42.9,3-9,3.0,9.0,33.3,0-0,0.0,0.0,0.0,4.0,12.0,16.0,2.0,4.0,1.0,1.0,2.0,15.0
+401480237,52,Florida State Seminoles,FSU,4609797,Ta'Niya Latson,Guard,0,True,False,30.0,10-22,10.0,22.0,45.5,1-5,1.0,5.0,20.0,7-8,7.0,8.0,87.5,5.0,4.0,9.0,2.0,2.0,2.0,3.0,1.0,28.0
+401480237,52,Florida State Seminoles,FSU,4400176,Taylor O'Brien,Guard,11,True,False,36.0,7-13,7.0,13.0,53.8,2-4,2.0,4.0,50.0,3-4,3.0,4.0,75.0,1.0,2.0,3.0,2.0,4.0,0.0,0.0,3.0,19.0
+401480237,52,Florida State Seminoles,FSU,4398765,Jazmine Massengill,Guard,1,True,False,6.0,2-2,2.0,2.0,100.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0.0,1.0,1.0,2.0,1.0,0.0,0.0,0.0,4.0
+401480237,52,Florida State Seminoles,FSU,4683035,Mariana Valenzuela,Forward,5,False,False,18.0,2-5,2.0,5.0,40.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,6.0,3.0,9.0,0.0,1.0,1.0,2.0,2.0,4.0
+401480237,52,Florida State Seminoles,FSU,4398583,Valencia Myers,Forward,32,False,False,11.0,2-3,2.0,3.0,66.7,0-1,0.0,1.0,0.0,0-0,0.0,0.0,0.0,0.0,4.0,4.0,0.0,0.0,0.0,0.0,3.0,4.0
+401480237,52,Florida State Seminoles,FSU,5106230,Brianna Turnage,Guard,2,False,False,22.0,1-7,1.0,7.0,14.3,0-4,0.0,4.0,0.0,0-0,0.0,0.0,0.0,1.0,6.0,7.0,3.0,0.0,2.0,0.0,0.0,2.0
+401480237,52,Florida State Seminoles,FSU,4595844,Sara Bejedi,Guard,4,False,False,27.0,3-8,3.0,8.0,37.5,0-3,0.0,3.0,0.0,8-8,8.0,8.0,100.0,0.0,2.0,2.0,6.0,2.0,0.0,3.0,5.0,14.0
+401480237,52,Florida State Seminoles,FSU,4433520,O'Mariah Gordon,Guard,3,False,True,,,,,,,,,,,,,,,,,,,,,,

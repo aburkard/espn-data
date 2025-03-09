@@ -1,0 +1,24 @@
+game_id,team_id,team_name,team_abbreviation,player_id,player_name,position,jersey,starter,did_not_play,MIN,FG,FG_MADE,FG_ATT,FG_PCT,3PT,3PT_MADE,3PT_ATT,3PT_PCT,FT,FT_MADE,FT_ATT,FT_PCT,OREB,DREB,REB,AST,STL,BLK,TO,PF,PTS
+401480241,197,Oklahoma State Cowgirls,OKST,4582912,Taylen Collins,Forward,14,True,False,29.0,5-10,5.0,10.0,50.0,0-0,0.0,0.0,0.0,2-2,2.0,2.0,100.0,4.0,13.0,17.0,0.0,1.0,0.0,0.0,2.0,12.0
+401480241,197,Oklahoma State Cowgirls,OKST,4703518,Lexy Keys,Guard,15,True,False,37.0,4-10,4.0,10.0,40.0,2-5,2.0,5.0,40.0,2-3,2.0,3.0,66.7,0.0,2.0,2.0,1.0,0.0,0.0,1.0,2.0,12.0
+401480241,197,Oklahoma State Cowgirls,OKST,4595905,Naomie Alnatas,Guard,3,True,False,30.0,7-19,7.0,19.0,36.8,3-9,3.0,9.0,33.3,2-2,2.0,2.0,100.0,0.0,4.0,4.0,4.0,1.0,0.0,3.0,4.0,19.0
+401480241,197,Oklahoma State Cowgirls,OKST,4400590,Terryn Milton,Guard,21,True,False,39.0,6-11,6.0,11.0,54.5,1-1,1.0,1.0,100.0,4-8,4.0,8.0,50.0,2.0,8.0,10.0,4.0,1.0,0.0,1.0,1.0,17.0
+401480241,197,Oklahoma State Cowgirls,OKST,4400589,Claire Chastain,Guard,12,True,False,28.0,3-9,3.0,9.0,33.3,0-2,0.0,2.0,0.0,2-4,2.0,4.0,50.0,2.0,0.0,2.0,0.0,0.0,1.0,2.0,1.0,8.0
+401480241,197,Oklahoma State Cowgirls,OKST,4704605,Lior Garzon,Forward,11,False,False,25.0,3-8,3.0,8.0,37.5,2-7,2.0,7.0,28.6,1-2,1.0,2.0,50.0,0.0,4.0,4.0,0.0,1.0,0.0,1.0,1.0,9.0
+401480241,197,Oklahoma State Cowgirls,OKST,4398979,Kassidy De Lapp,Center,1,False,False,5.0,1-1,1.0,1.0,100.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,1.0,0.0,1.0,0.0,0.0,1.0,0.0,1.0,2.0
+401480241,197,Oklahoma State Cowgirls,OKST,4898410,Anna Gret Asi,Guard,4,False,False,7.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0.0,1.0,1.0,2.0,0.0,0.0,1.0,0.0,0.0
+401480241,197,Oklahoma State Cowgirls,OKST,5106161,Praise Egharevba,Forward,24,False,True,,,,,,,,,,,,,,,,,,,,,,
+401480241,197,Oklahoma State Cowgirls,OKST,4691726,Macie James,Forward,20,False,True,,,,,,,,,,,,,,,,,,,,,,
+401480241,197,Oklahoma State Cowgirls,OKST,4400530,Trinitee Jackson,Forward,23,False,True,,,,,,,,,,,,,,,,,,,,,,
+401480241,197,Oklahoma State Cowgirls,OKST,5106162,Makyra Tramble,Guard,34,False,True,,,,,,,,,,,,,,,,,,,,,,
+401480241,197,Oklahoma State Cowgirls,OKST,4899837,Landry Williams,Guard,30,False,True,,,,,,,,,,,,,,,,,,,,,,
+401480241,52,Florida State Seminoles,FSU,4433546,Makayla Timpson,Forward,21,True,False,27.0,7-12,7.0,12.0,58.3,0-0,0.0,0.0,0.0,1-2,1.0,2.0,50.0,4.0,3.0,7.0,0.0,0.0,2.0,1.0,3.0,15.0
+401480241,52,Florida State Seminoles,FSU,4398609,Erin Howard,Forward,23,True,False,23.0,2-10,2.0,10.0,20.0,1-8,1.0,8.0,12.5,0-0,0.0,0.0,0.0,0.0,4.0,4.0,0.0,0.0,1.0,1.0,1.0,5.0
+401480241,52,Florida State Seminoles,FSU,4609797,Ta'Niya Latson,Guard,0,True,False,33.0,7-19,7.0,19.0,36.8,1-4,1.0,4.0,25.0,5-7,5.0,7.0,71.4,3.0,5.0,8.0,1.0,2.0,2.0,1.0,3.0,20.0
+401480241,52,Florida State Seminoles,FSU,4595844,Sara Bejedi,Guard,4,True,False,33.0,6-13,6.0,13.0,46.2,0-5,0.0,5.0,0.0,1-2,1.0,2.0,50.0,3.0,1.0,4.0,3.0,1.0,0.0,1.0,3.0,13.0
+401480241,52,Florida State Seminoles,FSU,4398765,Jazmine Massengill,Guard,1,True,False,34.0,3-7,3.0,7.0,42.9,1-2,1.0,2.0,50.0,0-0,0.0,0.0,0.0,0.0,3.0,3.0,3.0,0.0,0.0,0.0,0.0,7.0
+401480241,52,Florida State Seminoles,FSU,4683035,Mariana Valenzuela,Forward,5,False,False,15.0,2-4,2.0,4.0,50.0,2-2,2.0,2.0,100.0,0-0,0.0,0.0,0.0,0.0,4.0,4.0,1.0,0.0,0.0,0.0,4.0,6.0
+401480241,52,Florida State Seminoles,FSU,4398583,Valencia Myers,Forward,32,False,False,8.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0.0,2.0,2.0,0.0,0.0,0.0,2.0,2.0,0.0
+401480241,52,Florida State Seminoles,FSU,5106230,Brianna Turnage,Guard,2,False,False,8.0,0-4,0.0,4.0,0.0,0-2,0.0,2.0,0.0,0-0,0.0,0.0,0.0,1.0,2.0,3.0,0.0,0.0,1.0,0.0,0.0,0.0
+401480241,52,Florida State Seminoles,FSU,4433520,O'Mariah Gordon,Guard,3,False,False,19.0,4-8,4.0,8.0,50.0,3-5,3.0,5.0,60.0,0-0,0.0,0.0,0.0,0.0,3.0,3.0,2.0,0.0,0.0,0.0,3.0,11.0
+401480241,52,Florida State Seminoles,FSU,4400176,Taylor O'Brien,Guard,11,False,True,,,,,,,,,,,,,,,,,,,,,,

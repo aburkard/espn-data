@@ -1,0 +1,3 @@
+game_id,team_id,team_name,team_abbreviation,team_location,team_nickname,team_color,home_away,score,winner
+401513337,52,Florida State Seminoles,FSU,Florida State,Seminoles,782f40,home,54,False
+401513337,154,Wake Forest Demon Deacons,WAKE,Wake Forest,Demon Deacons,000000,away,65,True

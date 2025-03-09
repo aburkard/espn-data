@@ -1,0 +1,24 @@
+game_id,team_id,team_name,team_abbreviation,player_id,player_name,position,jersey,starter,did_not_play,MIN,FG,FG_MADE,FG_ATT,FG_PCT,3PT,3PT_MADE,3PT_ATT,3PT_PCT,FT,FT_MADE,FT_ATT,FT_PCT,OREB,DREB,REB,AST,STL,BLK,TO,PF,PTS
+401480242,52,Florida State Seminoles,FSU,4433546,Makayla Timpson,Forward,21,True,False,28.0,5-7,5.0,7.0,71.4,0-0,0.0,0.0,0.0,4-5,4.0,5.0,80.0,5.0,9.0,14.0,1.0,3.0,1.0,1.0,3.0,14.0
+401480242,52,Florida State Seminoles,FSU,4398609,Erin Howard,Forward,23,True,False,18.0,0-4,0.0,4.0,0.0,0-4,0.0,4.0,0.0,1-2,1.0,2.0,50.0,0.0,3.0,3.0,0.0,0.0,0.0,0.0,3.0,1.0
+401480242,52,Florida State Seminoles,FSU,4609797,Ta'Niya Latson,Guard,0,True,False,26.0,10-17,10.0,17.0,58.8,1-2,1.0,2.0,50.0,0-3,0.0,3.0,0.0,1.0,2.0,3.0,2.0,1.0,1.0,4.0,3.0,21.0
+401480242,52,Florida State Seminoles,FSU,4595844,Sara Bejedi,Guard,4,True,False,25.0,3-12,3.0,12.0,25.0,0-6,0.0,6.0,0.0,2-3,2.0,3.0,66.7,0.0,1.0,1.0,2.0,0.0,0.0,6.0,3.0,8.0
+401480242,52,Florida State Seminoles,FSU,4398765,Jazmine Massengill,Guard,1,True,False,33.0,3-9,3.0,9.0,33.3,2-3,2.0,3.0,66.7,0-0,0.0,0.0,0.0,1.0,3.0,4.0,3.0,0.0,0.0,0.0,2.0,8.0
+401480242,52,Florida State Seminoles,FSU,4683035,Mariana Valenzuela,Forward,5,False,False,13.0,2-3,2.0,3.0,66.7,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0.0,1.0,1.0,0.0,0.0,1.0,0.0,0.0,4.0
+401480242,52,Florida State Seminoles,FSU,4398583,Valencia Myers,Forward,32,False,False,11.0,2-3,2.0,3.0,66.7,0-0,0.0,0.0,0.0,1-1,1.0,1.0,100.0,1.0,1.0,2.0,0.0,1.0,0.0,1.0,2.0,5.0
+401480242,52,Florida State Seminoles,FSU,5106230,Brianna Turnage,Guard,2,False,False,22.0,0-1,0.0,1.0,0.0,0-1,0.0,1.0,0.0,0-0,0.0,0.0,0.0,1.0,4.0,5.0,1.0,1.0,1.0,0.0,1.0,0.0
+401480242,52,Florida State Seminoles,FSU,4433520,O'Mariah Gordon,Guard,3,False,False,24.0,5-9,5.0,9.0,55.6,2-4,2.0,4.0,50.0,3-6,3.0,6.0,50.0,0.0,0.0,0.0,3.0,1.0,0.0,2.0,2.0,15.0
+401480242,52,Florida State Seminoles,FSU,4400176,Taylor O'Brien,Guard,11,False,True,,,,,,,,,,,,,,,,,,,,,,
+401480242,2509,Purdue Boilermakers,PUR,4419354,Caitlyn Harper,Forward,34,True,False,30.0,3-7,3.0,7.0,42.9,0-0,0.0,0.0,0.0,2-4,2.0,4.0,50.0,2.0,4.0,6.0,0.0,0.0,0.0,1.0,1.0,8.0
+401480242,2509,Purdue Boilermakers,PUR,4433438,Madison Layden,Guard,33,True,False,36.0,5-8,5.0,8.0,62.5,5-7,5.0,7.0,71.4,0-0,0.0,0.0,0.0,0.0,3.0,3.0,4.0,1.0,1.0,3.0,4.0,15.0
+401480242,2509,Purdue Boilermakers,PUR,4433143,Jeanae Terry,Guard,10,True,False,38.0,2-9,2.0,9.0,22.2,0-1,0.0,1.0,0.0,2-2,2.0,2.0,100.0,4.0,8.0,12.0,8.0,2.0,0.0,4.0,3.0,6.0
+401480242,2509,Purdue Boilermakers,PUR,4399366,Lasha Petree,Guard,11,True,False,32.0,6-19,6.0,19.0,31.6,1-7,1.0,7.0,14.3,2-4,2.0,4.0,50.0,1.0,4.0,5.0,3.0,2.0,1.0,3.0,3.0,15.0
+401480242,2509,Purdue Boilermakers,PUR,4398945,Cassidy Hardin,Guard,5,True,False,15.0,4-9,4.0,9.0,44.4,3-8,3.0,8.0,37.5,0-0,0.0,0.0,0.0,0.0,4.0,4.0,0.0,0.0,0.0,2.0,3.0,11.0
+401480242,2509,Purdue Boilermakers,PUR,4433302,Rickie Woltman,Forward,35,False,False,10.0,1-1,1.0,1.0,100.0,0-0,0.0,0.0,0.0,1-2,1.0,2.0,50.0,1.0,0.0,1.0,0.0,0.0,1.0,0.0,0.0,3.0
+401480242,2509,Purdue Boilermakers,PUR,4899062,Ava Learn,Guard,14,False,False,2.0,0-1,0.0,1.0,0.0,0-0,0.0,0.0,0.0,0-0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0
+401480242,2509,Purdue Boilermakers,PUR,4899061,Jayla Smith,Guard,3,False,False,8.0,1-2,1.0,2.0,50.0,1-2,1.0,2.0,50.0,0-0,0.0,0.0,0.0,0.0,0.0,0.0,1.0,0.0,0.0,0.0,2.0,3.0
+401480242,2509,Purdue Boilermakers,PUR,4595183,Abbey Ellis,Guard,23,False,False,29.0,4-6,4.0,6.0,66.7,2-2,2.0,2.0,100.0,4-4,4.0,4.0,100.0,1.0,1.0,2.0,1.0,1.0,0.0,1.0,2.0,14.0
+401480242,2509,Purdue Boilermakers,PUR,4698731,Lilly Stoddard,Forward,31,False,True,,,,,,,,,,,,,,,,,,,,,,
+401480242,2509,Purdue Boilermakers,PUR,5110062,Katie Rudini,Guard,4,False,True,,,,,,,,,,,,,,,,,,,,,,
+401480242,2509,Purdue Boilermakers,PUR,5108545,Ainhoa Holzer,Guard,2,False,True,,,,,,,,,,,,,,,,,,,,,,
+401480242,2509,Purdue Boilermakers,PUR,4858673,Addison Potts,Guard,30,False,True,,,,,,,,,,,,,,,,,,,,,,
