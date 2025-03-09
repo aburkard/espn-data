@@ -1,4 +1,4 @@
-"""Main entry point for the ESPN Women's Basketball Data Scraper."""
+"""Main entry point for the ESPN College Basketball Data Scraper."""
 
 import argparse
 import asyncio
@@ -8,6 +8,7 @@ from typing import List, Optional
 
 from espn_data.scraper import scrape_all_data
 from espn_data.processor import process_all_data
+from espn_data.utils import set_gender, get_current_gender
 
 logger = logging.getLogger("espn_data")
 
@@ -16,13 +17,20 @@ async def main() -> None:
     """
     Main entry point for the full scraping and processing workflow.
     """
-    parser = argparse.ArgumentParser(description="ESPN Women's Basketball Data Scraper",
+    parser = argparse.ArgumentParser(description="ESPN College Basketball Data Scraper",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
     # Add command group
     group = parser.add_mutually_exclusive_group()
     group.add_argument("--scrape", action="store_true", help="Run only the scraper")
     group.add_argument("--process", action="store_true", help="Run only the processor")
+
+    # Add gender parameter
+    parser.add_argument("--gender",
+                        type=str,
+                        choices=["mens", "womens"],
+                        default="womens",
+                        help="Gender of college basketball data to scrape/process")
 
     # Add season parameters
     current_year = datetime.now().year
@@ -46,6 +54,10 @@ async def main() -> None:
 
     args = parser.parse_args()
 
+    # Set gender
+    set_gender(args.gender)
+    logger.info(f"Using gender: {args.gender}")
+
     # Determine seasons to scrape
     seasons: Optional[List[int]] = None
     if args.seasons:
@@ -58,21 +70,29 @@ async def main() -> None:
     # Run selected workflow
     if args.process:
         # Only run the processor
-        logger.info("Running data processor")
-        process_all_data(seasons=seasons, max_workers=args.max_workers)
+        logger.info(f"Running data processor for {get_current_gender()} basketball")
+        process_all_data(seasons=seasons, max_workers=args.max_workers, gender=args.gender)
     elif args.scrape:
         # Only run the scraper
-        logger.info("Running data scraper")
-        await scrape_all_data(concurrency=args.concurrency, delay=args.delay, seasons=seasons, team_id=args.team_id)
+        logger.info(f"Running data scraper for {get_current_gender()} basketball")
+        await scrape_all_data(concurrency=args.concurrency,
+                              delay=args.delay,
+                              seasons=seasons,
+                              team_id=args.team_id,
+                              gender=args.gender)
     else:
         # Run the full workflow
-        logger.info("Running full workflow (scrape + process)")
+        logger.info(f"Running full workflow (scrape + process) for {get_current_gender()} basketball")
 
         # Step 1: Scrape data
-        await scrape_all_data(concurrency=args.concurrency, delay=args.delay, seasons=seasons, team_id=args.team_id)
+        await scrape_all_data(concurrency=args.concurrency,
+                              delay=args.delay,
+                              seasons=seasons,
+                              team_id=args.team_id,
+                              gender=args.gender)
 
         # Step 2: Process data
-        process_all_data(seasons=seasons, max_workers=args.max_workers)
+        process_all_data(seasons=seasons, max_workers=args.max_workers, gender=args.gender)
 
     logger.info("Workflow completed successfully")
 

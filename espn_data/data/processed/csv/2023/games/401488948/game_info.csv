@@ -1,2 +1,0 @@
-game_id,date,venue_id,venue,venue_location,venue_city,venue_state,attendance,status,state,neutral_site,format,completed,broadcast,broadcast_market,conference
-401488948,2023-02-12T19:00Z,2119,Cassell Coliseum,"Blacksburg, VA",Blacksburg,VA,2897,Final,post,False,"{'regulation': {'periods': 4, 'displayName': 'Quarter', 'slug': 'quarter', 'clock': 600.0}, 'overtime': {'clock': 300.0}}",True,ACC Network,National,Atlantic Coast Conference

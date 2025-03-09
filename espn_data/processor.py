@@ -12,8 +12,9 @@ from tqdm import tqdm
 
 from espn_data.utils import (load_json, save_json, get_teams_file, get_schedules_dir, get_games_dir, get_processed_dir,
                              get_csv_dir, get_parquet_dir, get_csv_teams_file, get_parquet_teams_file,
-                             get_csv_season_dir, get_parquet_season_dir, get_csv_games_dir, get_parquet_games_dir)
-from espn_data.scraper import get_game_data
+                             get_csv_season_dir, get_parquet_season_dir, get_csv_games_dir, get_parquet_games_dir,
+                             set_gender, get_current_gender)
+from espn_data.scraper import get_game_data, DEFAULT_SEASONS
 
 logger = logging.getLogger("espn_data")
 
@@ -23,6 +24,14 @@ logger = logging.getLogger("espn_data")
 # os.makedirs(PARQUET_DIR, exist_ok=True)
 # os.makedirs(CSV_GAMES_DIR, exist_ok=True)
 # os.makedirs(PARQUET_GAMES_DIR, exist_ok=True)
+
+# Instead of
+# BASE_DIR = Path(__file__).parent
+# DATA_DIR = BASE_DIR / "data"
+
+# Change to
+BASE_DIR = Path(__file__).parent.parent  # Go up one level to workspace root
+DATA_DIR = BASE_DIR / "data"
 
 
 def process_teams_data() -> pd.DataFrame:
@@ -929,54 +938,68 @@ def process_schedules(season: int) -> pd.DataFrame:
     return schedules_df
 
 
-def process_all_data(seasons: Optional[List[int]] = None, max_workers: int = 4) -> None:
+def process_season_data(season: int, max_workers: int = 4) -> Dict[str, Any]:
     """
-    Process all data: teams, schedules, and games for specified seasons.
+    Process all data for a specific season.
     
     Args:
-        seasons: List of seasons to process
-        max_workers: Maximum number of concurrent processes to use
+        season: The season year to process
+        max_workers: Maximum number of concurrent processes
+        
+    Returns:
+        Dictionary with processing summary
     """
+    logger.info(f"Processing data for season {season}")
+
+    # Process schedules for this season
+    schedules_df = process_schedules(season)
+
+    # Process games for this season
+    game_summary = process_all_games(season, max_workers=max_workers)
+
+    # Create summary statistics
+    summary = {
+        "schedules_count":
+            len(schedules_df),
+        "games_count":
+            len(game_summary["game_summary"]),
+        "processed_games_count": (game_summary["game_summary"]["processed"].sum()
+                                  if "processed" in game_summary["game_summary"].columns else 0)
+    }
+
+    # Log summary
+    logger.info(f"Season {season}: {summary['schedules_count']} schedule entries, "
+                f"{summary['games_count']} games, {summary['processed_games_count']} processed games")
+
+    return summary
+
+
+def process_all_data(seasons: Optional[List[int]] = None, max_workers: int = 4, gender: str = None) -> None:
+    """
+    Process all basketball data for the specified gender and seasons.
+    
+    Args:
+        seasons: List of seasons to process (default: all seasons)
+        max_workers: Maximum number of concurrent processes
+        gender: Either "mens" or "womens" (if None, uses current setting)
+    """
+    if gender:
+        set_gender(gender)
+
+    logger.info(f"Processing {get_current_gender()} basketball data")
+
+    # Determine which seasons to process
     if seasons is None:
-        # Default to recent seasons if none specified
-        seasons = [2022, 2023]
+        seasons = DEFAULT_SEASONS
 
-    logger.info(f"Processing all data for seasons: {seasons}")
-
-    # Process teams (this is not season-specific)
+    # Get team data
     teams_df = process_teams_data()
 
-    season_summaries = {}
-
-    # Process each season
+    # Process each season (schedules and games)
     for season in seasons:
-        logger.info(f"Processing data for season {season}")
+        process_season_data(season, max_workers)
 
-        # Process schedules for this season
-        schedules_df = process_schedules(season)
-
-        # Process games for this season
-        game_summary = process_all_games(season, max_workers=max_workers)
-
-        season_summaries[season] = {
-            "schedules_count":
-                len(schedules_df),
-            "games_count":
-                len(game_summary["game_summary"]),
-            "processed_games_count":
-                game_summary["game_summary"]["processed"].sum()
-                if "processed" in game_summary["game_summary"].columns else 0
-        }
-
-    # Log summary of processing
-    logger.info("Data processing complete. All files saved.")
-    logger.info(f"Processed {len(teams_df)} teams")
-
-    for season, summary in season_summaries.items():
-        logger.info(f"Season {season}: {summary['schedules_count']} schedule entries, "
-                    f"{summary['games_count']} games, {summary['processed_games_count']} processed games")
-
-    # Log directory information
+    logger.info(f"Processed all {get_current_gender()} basketball data for seasons: {seasons}")
     logger.info(f"Data saved in: {get_processed_dir()}")
     logger.info(f"CSV files stored in: {get_csv_dir()}")
     logger.info(f"Parquet files stored in: {get_parquet_dir()}")
@@ -986,7 +1009,15 @@ def main() -> None:
     """Main entry point for the processor."""
     import argparse
 
-    parser = argparse.ArgumentParser(description="Process ESPN women's basketball data")
+    parser = argparse.ArgumentParser(description="Process ESPN college basketball data")
+
+    # Add gender parameter
+    parser.add_argument("--gender",
+                        type=str,
+                        choices=["mens", "womens"],
+                        default="womens",
+                        help="Gender of college basketball data to process")
+
     parser.add_argument("--seasons", type=int, nargs="+", help="List of seasons to process (e.g., 2022 2023)")
     parser.add_argument("--max-workers",
                         type=int,
@@ -996,7 +1027,7 @@ def main() -> None:
     args = parser.parse_args()
 
     # Run the processor
-    process_all_data(seasons=args.seasons, max_workers=args.max_workers)
+    process_all_data(seasons=args.seasons, max_workers=args.max_workers, gender=args.gender)
 
 
 if __name__ == "__main__":

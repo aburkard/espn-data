@@ -1,2 +1,0 @@
-game_id,date,venue_id,venue,venue_location,venue_city,venue_state,attendance,status,state,neutral_site,format,completed,broadcast,broadcast_market,conference
-401488859,2022-12-30T01:00Z,1975,Carmichael Arena,"Chapel Hill, NC",Chapel Hill,NC,2237,Final,post,False,"{'regulation': {'periods': 4, 'displayName': 'Quarter', 'slug': 'quarter', 'clock': 600.0}, 'overtime': {'clock': 300.0}}",True,ACC Extra,Unknown,Atlantic Coast Conference

@@ -1,2 +1,0 @@
-game_id,date,venue_id,venue,venue_location,venue_city,venue_state,attendance,status,state,neutral_site,format,completed,broadcast,broadcast_market,conference
-401488905,2023-01-22T19:00Z,1952,Tucker Center,"Tallahassee, FL",Tallahassee,FL,2025,Final,post,False,"{'regulation': {'periods': 4, 'displayName': 'Quarter', 'slug': 'quarter', 'clock': 600.0}, 'overtime': {'clock': 300.0}}",True,ACC Extra,Unknown,Atlantic Coast Conference

@@ -1,3 +1,0 @@
-game_id,team_id,team_name,team_abbreviation,team_location,team_nickname,team_color,home_away,score,winner
-401488960,52,Florida State Seminoles,FSU,Florida State,Seminoles,782f40,home,80,True
-401488960,59,Georgia Tech Yellow Jackets,GT,Georgia Tech,Yellow Jackets,003057,away,66,False

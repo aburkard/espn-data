@@ -1,2 +1,0 @@
-game_id,date,venue_id,venue,venue_location,venue_city,venue_state,attendance,status,state,neutral_site,format,completed,broadcast,broadcast_market,conference
-401488874,2023-01-08T17:00Z,135,Conte Forum,"Chestnut Hill, MA",Chestnut Hill,MA,957,Final,post,False,"{'regulation': {'periods': 4, 'displayName': 'Quarter', 'slug': 'quarter', 'clock': 600.0}, 'overtime': {'clock': 300.0}}",True,ACC Network,National,Atlantic Coast Conference

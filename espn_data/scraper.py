@@ -1,4 +1,4 @@
-"""Scrape ESPN Women's Basketball data."""
+"""Scrape ESPN College Basketball data."""
 
 import os
 import json
@@ -11,27 +11,31 @@ from pathlib import Path
 from tqdm import tqdm
 
 from espn_data.utils import (make_request, load_json, save_json, get_teams_file, get_schedules_dir, get_games_dir,
-                             get_raw_dir, get_season_dir, TEAMS_URL, TEAM_SCHEDULE_URL, GAME_DATA_URL)
+                             get_raw_dir, get_season_dir, get_current_gender, set_gender, get_teams_url)
 
 logger = logging.getLogger("espn_data")
 
 # Default values
-DEFAULT_SEASONS = list(range(2002, 2024))  # NCAA women's basketball data from 2002-2023
+DEFAULT_SEASONS = list(range(2002, 2024))  # NCAA basketball data from 2002-2023
 DEFAULT_CONCURRENCY = 5
 DEFAULT_DELAY = 0.5
 
 
-def get_all_teams(max_teams: Optional[int] = None) -> List[Dict[str, Any]]:
+def get_all_teams(gender: str = None, max_teams: Optional[int] = None) -> List[Dict[str, Any]]:
     """
-    Fetch all women's college basketball teams from ESPN.
+    Fetch all college basketball teams from ESPN for the specified gender.
     
     Args:
+        gender: Either "mens" or "womens" (if None, uses current setting)
         max_teams: Maximum number of teams to retrieve (for testing)
         
     Returns:
         List of team data dictionaries
     """
-    logger.info("Fetching all women's college basketball teams")
+    if gender:
+        set_gender(gender)
+
+    logger.info(f"Fetching all {get_current_gender()} college basketball teams")
 
     all_teams = []
     page = 1
@@ -42,7 +46,7 @@ def get_all_teams(max_teams: Optional[int] = None) -> List[Dict[str, Any]]:
         logger.info(f"Fetching teams page {page} with limit {limit}")
 
         # Build URL with pagination
-        url = f"{TEAMS_URL}?limit={limit}&page={page}"
+        url = f"{get_teams_url()}?limit={limit}&page={page}"
 
         # Fetch data
         response_data = make_request(url)
@@ -87,17 +91,21 @@ def get_all_teams(max_teams: Optional[int] = None) -> List[Dict[str, Any]]:
     return all_teams
 
 
-def get_team_schedule(team_id: str, seasons: Optional[List[int]] = None) -> List[Dict[str, Any]]:
+def get_team_schedule(team_id: str, seasons: Optional[List[int]] = None, gender: str = None) -> List[Dict[str, Any]]:
     """
-    Fetch schedule data for a specific team.
+    Get schedule for a specific team across multiple seasons.
     
     Args:
         team_id: ESPN team ID
-        seasons: List of seasons to fetch
+        seasons: List of seasons to fetch (default: all seasons)
+        gender: Either "mens" or "womens" (if None, uses current setting)
         
     Returns:
-        List of game data
+        List of game data dictionaries
     """
+    if gender:
+        set_gender(gender)
+
     if seasons is None:
         seasons = DEFAULT_SEASONS
 
@@ -138,17 +146,21 @@ def get_team_schedule(team_id: str, seasons: Optional[List[int]] = None) -> List
     return all_games
 
 
-def get_game_data(game_id: str, season: int) -> Dict[str, Any]:
+def get_game_data(game_id: str, season: int, gender: str = None) -> Dict[str, Any]:
     """
-    Fetch detailed data for a specific game.
+    Get detailed data for a specific game.
     
     Args:
         game_id: ESPN game ID
-        season: The season this game belongs to
+        season: Season year
+        gender: Either "mens" or "womens" (if None, uses current setting)
         
     Returns:
         Game data dictionary
     """
+    if gender:
+        set_gender(gender)
+
     logger.info(f"Fetching data for game {game_id}")
 
     url = GAME_DATA_URL.format(game_id=game_id)
@@ -176,19 +188,25 @@ def get_game_data(game_id: str, season: int) -> Dict[str, Any]:
         return {}
 
 
-async def fetch_game_async(session: aiohttp.ClientSession, game_id: str,
-                           season: int) -> Tuple[str, Dict[str, Any], int]:
+async def fetch_game_async(session: aiohttp.ClientSession,
+                           game_id: str,
+                           season: int,
+                           gender: str = None) -> Tuple[str, Dict[str, Any], int]:
     """
     Fetch game data asynchronously.
     
     Args:
         session: aiohttp client session
         game_id: ESPN game ID
-        season: The season this game belongs to
+        season: Season year
+        gender: Either "mens" or "womens" (if None, uses current setting)
         
     Returns:
         Tuple of (game_id, game_data, season)
     """
+    if gender:
+        set_gender(gender)
+
     logger.info(f"Fetching data for game {game_id} (season {season})")
 
     url = GAME_DATA_URL.format(game_id=game_id)
@@ -222,18 +240,23 @@ async def fetch_game_async(session: aiohttp.ClientSession, game_id: str,
 
 async def fetch_games_batch(game_data_list: List[Tuple[str, int]],
                             concurrency: int = DEFAULT_CONCURRENCY,
-                            delay: float = DEFAULT_DELAY) -> Dict[str, Dict[str, Any]]:
+                            delay: float = DEFAULT_DELAY,
+                            gender: str = None) -> Dict[str, Dict[str, Any]]:
     """
-    Fetch multiple games asynchronously in batches with rate limiting.
+    Fetch a batch of games concurrently.
     
     Args:
-        game_data_list: List of tuples containing (game_id, season)
+        game_data_list: List of (game_id, season) tuples
         concurrency: Maximum number of concurrent requests
-        delay: Delay between batches in seconds
+        delay: Delay between requests in seconds
+        gender: Either "mens" or "womens" (if None, uses current setting)
         
     Returns:
-        Dictionary mapping game IDs to game data
+        Dictionary mapping game_id to game data
     """
+    if gender:
+        set_gender(gender)
+
     if not game_data_list:
         logger.warning("No game IDs provided")
         return {}
@@ -262,16 +285,20 @@ async def fetch_games_batch(game_data_list: List[Tuple[str, int]],
     return results
 
 
-def extract_game_ids_from_schedules(seasons: Optional[List[int]] = None) -> Set[Tuple[str, int]]:
+def extract_game_ids_from_schedules(seasons: Optional[List[int]] = None, gender: str = None) -> Set[Tuple[str, int]]:
     """
-    Extract unique game IDs from all team schedules.
+    Extract game IDs from all team schedules.
     
     Args:
-        seasons: List of seasons to extract game IDs from
+        seasons: List of seasons to process (default: all seasons)
+        gender: Either "mens" or "womens" (if None, uses current setting)
         
     Returns:
-        Set of tuples containing (game_id, season)
+        Set of (game_id, season) tuples
     """
+    if gender:
+        set_gender(gender)
+
     if seasons is None:
         seasons = DEFAULT_SEASONS
 
@@ -304,23 +331,30 @@ def extract_game_ids_from_schedules(seasons: Optional[List[int]] = None) -> Set[
 async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
                           delay: float = DEFAULT_DELAY,
                           seasons: Optional[List[int]] = None,
-                          team_id: Optional[str] = None) -> None:
+                          team_id: Optional[str] = None,
+                          gender: str = None) -> None:
     """
-    Run the complete scraping process.
+    Scrape all ESPN college basketball data.
     
     Args:
         concurrency: Maximum number of concurrent requests
-        delay: Delay between batches in seconds
-        seasons: List of seasons to fetch
-        team_id: Optional specific team ID to fetch (for testing)
+        delay: Delay between requests in seconds
+        seasons: List of seasons to scrape (default: all seasons)
+        team_id: Optional team ID to scrape only one team (for testing)
+        gender: Either "mens" or "womens" (if None, uses current setting)
     """
+    if gender:
+        set_gender(gender)
+
+    logger.info(f"Starting scraper for {get_current_gender()} college basketball data")
+
     if seasons is None:
         seasons = DEFAULT_SEASONS
 
     logger.info(f"Starting full data scrape for seasons {min(seasons)}-{max(seasons)}")
 
     # Step 1: Get all teams once (not per season)
-    teams = get_all_teams()
+    teams = get_all_teams(gender)
     if not teams:
         logger.error("Failed to retrieve teams, aborting")
         return
@@ -344,31 +378,43 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
 
         if team_id:
             # Only get schedule for the specified team
-            get_team_schedule(team_id, [season])
+            get_team_schedule(team_id, [season], gender)
         else:
             # Get schedules for all teams
             for team in tqdm(teams, desc=f"Fetching team schedules for season {season}"):
                 team_id = team["id"] if "id" in team else ""
                 if team_id:
-                    get_team_schedule(team_id, [season])
+                    get_team_schedule(team_id, [season], gender)
                     time.sleep(delay)  # Respect rate limits
 
     # Step 3: Extract game IDs from schedules
-    game_data = list(extract_game_ids_from_schedules(seasons))
+    game_data = list(extract_game_ids_from_schedules(seasons, gender))
     logger.info(f"Found {len(game_data)} unique games to fetch")
 
     # Step 4: Fetch game data asynchronously
     logger.info(f"Fetching game data with concurrency={concurrency}, delay={delay}")
-    await fetch_games_batch(game_data, concurrency, delay)
+    await fetch_games_batch(game_data, concurrency, delay, gender)
 
     logger.info("Full data scrape completed")
 
 
 def main() -> None:
-    """Main entry point for the scraper."""
+    """
+    Main entry point for the scraper script.
+    """
     import argparse
+    from datetime import datetime
 
-    parser = argparse.ArgumentParser(description="Scrape ESPN women's basketball data")
+    # Parse arguments
+    parser = argparse.ArgumentParser(description="Scrape ESPN college basketball data")
+
+    # Add gender parameter
+    parser.add_argument("--gender",
+                        type=str,
+                        choices=["mens", "womens"],
+                        default="womens",
+                        help="Gender of college basketball data to scrape (default: womens)")
+
     parser.add_argument("--seasons", type=int, nargs="+", help="List of seasons to scrape (e.g., 2020 2021 2022)")
     parser.add_argument("--concurrency",
                         type=int,
@@ -380,11 +426,22 @@ def main() -> None:
                         help=f"Delay between requests in seconds (default: {DEFAULT_DELAY})")
     parser.add_argument("--team-id", type=str, help="Specific team ID to scrape (for testing)")
 
+    # Process arguments
     args = parser.parse_args()
 
-    loop = asyncio.get_event_loop()
-    loop.run_until_complete(
-        scrape_all_data(concurrency=args.concurrency, delay=args.delay, seasons=args.seasons, team_id=args.team_id))
+    # Set gender
+    set_gender(args.gender)
+
+    # Determine seasons to scrape
+    seasons = args.seasons or list(range(args.start_year, args.end_year + 1))
+
+    # Run scraper
+    asyncio.run(
+        scrape_all_data(concurrency=args.concurrency,
+                        delay=args.delay,
+                        seasons=seasons,
+                        team_id=args.team_id,
+                        gender=args.gender))
 
 
 if __name__ == "__main__":

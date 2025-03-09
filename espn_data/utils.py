@@ -19,16 +19,69 @@ logger = logging.getLogger("espn_data")
 BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
 
-# Remove fixed directory definitions that don't include season
-# TEAMS_FILE = DATA_DIR / "teams.json"
-# SCHEDULES_DIR = DATA_DIR / "schedules"
-# GAMES_DIR = DATA_DIR / "games"
+# URL templates based on gender
+URL_TEMPLATES = {
+    "mens": {
+        "TEAMS_URL":
+            "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams",
+        "TEAM_SCHEDULE_URL":
+            "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/{team_id}/schedule",
+        "GAME_DATA_URL":
+            "https://site.web.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/summary?event={game_id}"
+    },
+    "womens": {
+        "TEAMS_URL":
+            "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/teams",
+        "TEAM_SCHEDULE_URL":
+            "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/teams/{team_id}/schedule",
+        "GAME_DATA_URL":
+            "https://site.web.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/summary?event={game_id}"
+    }
+}
+
+# Default to women's basketball for backward compatibility
+CURRENT_GENDER = "womens"
 
 
-# Create directory functions that include seasons
+def set_gender(gender: str) -> None:
+    """
+    Set the current gender for basketball data.
+    
+    Args:
+        gender: Either "mens" or "womens"
+    """
+    global CURRENT_GENDER
+    if gender not in ["mens", "womens"]:
+        raise ValueError("Gender must be either 'mens' or 'womens'")
+    CURRENT_GENDER = gender
+    logger.info(f"Set current gender to {CURRENT_GENDER}")
+
+
+def get_current_gender() -> str:
+    """Get the current gender setting."""
+    return CURRENT_GENDER
+
+
+# URL accessor functions
+def get_teams_url() -> str:
+    """Get the teams URL for the current gender."""
+    return URL_TEMPLATES[CURRENT_GENDER]["TEAMS_URL"]
+
+
+def get_team_schedule_url() -> str:
+    """Get the team schedule URL template for the current gender."""
+    return URL_TEMPLATES[CURRENT_GENDER]["TEAM_SCHEDULE_URL"]
+
+
+def get_game_data_url() -> str:
+    """Get the game data URL template for the current gender."""
+    return URL_TEMPLATES[CURRENT_GENDER]["GAME_DATA_URL"]
+
+
+# Create directory functions that include gender and seasons
 def get_raw_dir() -> Path:
     """Get the base raw data directory."""
-    return DATA_DIR / "raw"
+    return DATA_DIR / "raw" / CURRENT_GENDER
 
 
 def get_season_dir(base_dir: Path, season: int) -> Path:
@@ -53,7 +106,7 @@ def get_games_dir(season: int) -> Path:
 
 def get_processed_dir() -> Path:
     """Get the base processed data directory."""
-    return DATA_DIR / "processed"
+    return DATA_DIR / "processed" / CURRENT_GENDER
 
 
 def get_csv_dir() -> Path:
@@ -98,17 +151,19 @@ def get_parquet_games_dir(season: int) -> Path:
 
 # Ensure base directories exist
 os.makedirs(DATA_DIR, exist_ok=True)
-os.makedirs(get_raw_dir(), exist_ok=True)
-os.makedirs(get_processed_dir(), exist_ok=True)
+os.makedirs(DATA_DIR / "raw" / "mens", exist_ok=True)
+os.makedirs(DATA_DIR / "raw" / "womens", exist_ok=True)
+os.makedirs(DATA_DIR / "processed" / "mens", exist_ok=True)
+os.makedirs(DATA_DIR / "processed" / "womens", exist_ok=True)
 os.makedirs(get_csv_dir(), exist_ok=True)
 os.makedirs(get_parquet_dir(), exist_ok=True)
 
 # Season directories will be created as needed when processing data
 
-# URL Templates
-TEAMS_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/teams"
-TEAM_SCHEDULE_URL = "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/teams/{team_id}/schedule"
-GAME_DATA_URL = "https://site.web.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/summary?event={game_id}"
+# For backward compatibility, replace direct URL constants with accessor functions
+TEAMS_URL = get_teams_url()
+TEAM_SCHEDULE_URL = get_team_schedule_url()
+GAME_DATA_URL = get_game_data_url()
 
 # Request headers to mimic a browser
 HEADERS = {
