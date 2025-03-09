@@ -36,6 +36,9 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
         
     Returns:
         List of team data dictionaries
+        
+    Note:
+        This function does NOT save the data to disk - callers should handle saving if needed.
     """
     if gender:
         set_gender(gender)
@@ -76,9 +79,9 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
 
         logger.info(f"Found {len(teams)} teams")
 
-        # Save the teams data
-        os.makedirs(teams_file.parent, exist_ok=True)
-        save_json(teams, teams_file)
+        # Remove the save operation - let caller handle saving
+        # os.makedirs(teams_file.parent, exist_ok=True)
+        # save_json(teams, teams_file)
 
         return teams
 
@@ -92,11 +95,11 @@ def get_team_schedule(team_id: str,
                       gender: str = None,
                       force: bool = False) -> List[Dict[str, Any]]:
     """
-    Get schedule for a specific team across one or more seasons.
+    Get schedule data for a team across specified seasons.
     
     Args:
         team_id: ESPN team ID
-        seasons: List of seasons to get schedule for (if None, uses current season)
+        seasons: List of seasons to get schedule for
         gender: Either "mens" or "womens" (if None, uses current setting)
         force: If True, force refetch even if data exists
         
@@ -132,12 +135,7 @@ def get_team_schedule(team_id: str,
             data = make_request(url, params)
             games = data
 
-            # Ensure schedules directory exists
-            schedules_dir = get_schedules_dir(season)
-            os.makedirs(schedules_dir, exist_ok=True)
-
-            # Save schedule data for this season
-            save_json(games, output_file)
+            # Note: Removed save_json call here to avoid double-saving
 
             if games:
                 all_games.extend(games.get("events", []))
@@ -160,6 +158,9 @@ def get_game_data(game_id: str, season: int, gender: str = None, force: bool = F
         
     Returns:
         Game data dictionary
+        
+    Note:
+        This function saves the game data to disk internally.
     """
     if gender:
         set_gender(gender)
@@ -214,6 +215,9 @@ async def fetch_game_async(session: aiohttp.ClientSession,
         
     Returns:
         Tuple of (game_id, game_data, HTTP status code)
+        
+    Note:
+        This function saves the game data to disk internally.
     """
     if gender:
         set_gender(gender)
