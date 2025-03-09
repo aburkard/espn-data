@@ -4,6 +4,7 @@ import os
 import json
 import logging
 import pandas as pd
+import numpy as np
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
 from concurrent.futures import ProcessPoolExecutor
@@ -12,6 +13,7 @@ from tqdm import tqdm
 from espn_data.utils import (load_json, save_json, get_teams_file, get_schedules_dir, get_games_dir, get_processed_dir,
                              get_csv_dir, get_parquet_dir, get_csv_teams_file, get_parquet_teams_file,
                              get_csv_season_dir, get_parquet_season_dir, get_csv_games_dir, get_parquet_games_dir)
+from espn_data.scraper import get_game_data
 
 logger = logging.getLogger("espn_data")
 
@@ -40,21 +42,26 @@ def process_teams_data() -> pd.DataFrame:
 
     # Extract relevant fields
     teams_list = []
-    for team in teams_data:
+    for team_entry in teams_data:
         try:
+            # Handle nested 'team' structure in the raw data
+            team = team_entry.get("team", team_entry)
+
             team_dict = {
                 "team_id": team.get("id", ""),
+                "uid": team.get("uid", ""),
+                "slug": team.get("slug", ""),
                 "abbreviation": team.get("abbreviation", ""),
+                "display_name": team.get("displayName", ""),
+                "short_display_name": team.get("shortDisplayName", ""),
                 "name": team.get("name", ""),
-                "short_name": team.get("shortName", ""),
                 "nickname": team.get("nickname", ""),
                 "location": team.get("location", ""),
-                "display_name": team.get("displayName", ""),
                 "color": team.get("color", ""),
                 "alternate_color": team.get("alternateColor", ""),
+                "is_active": team.get("isActive", True),
+                "is_all_star": team.get("isAllStar", False),
                 "logo": team.get("logos", [{}])[0].get("href", "") if team.get("logos") else "",
-                "conference_id": team.get("conferenceId", ""),
-                "conference": team.get("conference", ""),
             }
             teams_list.append(team_dict)
         except Exception as e:
@@ -90,6 +97,125 @@ def convert_clock_to_seconds(clock_str):
         return None
 
 
+def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Extract key game details like date, venue, etc. from game data.
+    
+    Args:
+        game_data: Raw game data from the API
+        
+    Returns:
+        Dictionary with extracted details
+    """
+    details = {
+        "date": None,
+        "venue_name": None,
+        "venue_location": None,
+        "attendance": None,
+        "teams": [],
+        "officials": [],  # Added officials list
+        "format": None,  # Added format information
+        "status": None,  # Added status field
+        "broadcasts": [],  # Added broadcasts field
+        "groups": None,  # Added groups field
+    }
+
+    if not game_data:
+        return details
+
+    # Extract date from competitions array
+    if 'header' in game_data and 'competitions' in game_data['header'] and game_data['header']['competitions']:
+        competition = game_data['header']['competitions'][0]
+        details["date"] = competition.get('date')
+
+        # Extract team information from competitions
+        if 'competitors' in competition:
+            for competitor in competition['competitors']:
+                if 'team' in competitor:
+                    team_info = {
+                        "id": competitor['team'].get('id', ''),
+                        "display_name": competitor['team'].get('displayName', ''),
+                        "abbreviation": competitor['team'].get('abbreviation', ''),
+                        "location": competitor['team'].get('location', ''),
+                        "name": competitor['team'].get('name', ''),
+                        "color": competitor['team'].get('color', ''),
+                        "home_away": competitor.get('homeAway', ''),
+                        "winner": competitor.get('winner', False),
+                        "score": competitor.get('score', 0)
+                    }
+                    details["teams"].append(team_info)
+
+        # Extract status information
+        if 'status' in competition and 'type' in competition['status']:
+            status_type = competition['status']['type']
+            details["status"] = {
+                "id": status_type.get('id', ''),
+                "name": status_type.get('name', ''),
+                "state": status_type.get('state', ''),
+                "completed": status_type.get('completed', False),
+                "description": status_type.get('description', ''),
+                "detail": status_type.get('detail', ''),
+                "short_detail": status_type.get('shortDetail', '')
+            }
+
+        # Extract broadcasts information
+        if 'broadcasts' in competition and isinstance(competition['broadcasts'], list):
+            for broadcast in competition['broadcasts']:
+                broadcast_info = {
+                    "type": broadcast.get('type', {}).get('shortName', ''),
+                    "market": broadcast.get('market', {}).get('type', ''),
+                    "media": broadcast.get('media', {}).get('shortName', ''),
+                    "lang": broadcast.get('lang', ''),
+                    "region": broadcast.get('region', '')
+                }
+                details["broadcasts"].append(broadcast_info)
+
+        # Extract groups (conference) information
+        if 'groups' in competition and isinstance(competition['groups'], dict):
+            groups = competition['groups']
+            details["groups"] = {
+                "id": groups.get('id', ''),
+                "name": groups.get('name', ''),
+                "abbreviation": groups.get('abbreviation', ''),
+                "short_name": groups.get('shortName', ''),
+                "midsize_name": groups.get('midsizeName', '')
+            }
+
+    # Extract venue information from gameInfo
+    if 'gameInfo' in game_data and 'venue' in game_data['gameInfo']:
+        venue = game_data['gameInfo']['venue']
+        details["venue_name"] = venue.get('fullName')
+
+        # Get venue location
+        if 'address' in venue:
+            city = venue['address'].get('city', '')
+            state = venue['address'].get('state', '')
+            if city and state:
+                details["venue_location"] = f"{city}, {state}"
+
+    # Extract attendance
+    if 'gameInfo' in game_data and 'attendance' in game_data['gameInfo']:
+        details["attendance"] = game_data['gameInfo']['attendance']
+
+    # Extract officials/referees
+    if 'gameInfo' in game_data and 'officials' in game_data['gameInfo']:
+        for official in game_data['gameInfo']['officials']:
+            official_info = {
+                "name": official.get('fullName', ''),
+                "display_name": official.get('displayName', ''),
+                "position": official.get('position', {}).get('displayName', ''),
+                "position_id": official.get('position', {}).get('id', ''),
+                "order": official.get('order', 0)
+            }
+            details["officials"].append(official_info)
+
+    # Extract format information
+    if 'format' in game_data:
+        details["format"] = game_data["format"]
+
+    return details
+
+
 def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
     """
     Process game data into structured format with game info, team stats, and play-by-play data.
@@ -118,20 +244,38 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
         team_stats = []
         play_by_play = []
         officials_data = []  # For referee data
+        broadcasts_data = []  # For broadcast data
 
         # 1. Extract game info
         if isinstance(game_data, dict):
             game_details = get_game_details(game_data)
 
             game_info = {
-                "game_id": game_id,
-                "date": game_details["date"],
-                "venue": game_details["venue_name"],
-                "venue_location": game_details["venue_location"],
-                "attendance": game_details["attendance"],
-                "status": game_details.get("status", ""),
-                "clock": game_details.get("clock", ""),
-                "neutral_site": game_details.get("neutral_site", False),
+                "game_id":
+                    game_id,
+                "date":
+                    game_details["date"],
+                "venue":
+                    game_details["venue_name"],
+                "venue_location":
+                    game_details["venue_location"],
+                "attendance":
+                    game_details["attendance"],
+                "status": (game_details.get("status", {}).get("description", "") or
+                           game_details.get("status", {}).get("short_detail", "") or
+                           game_details.get("status", {}).get("name", "")),
+                "state":
+                    game_details.get("status", {}).get("state", ""),
+                "neutral_site":
+                    game_details.get("neutral_site", False),
+                "format":
+                    game_details.get("format", None),
+                "completed":
+                    game_details.get("status", {}).get("completed", False),
+                "broadcast":
+                    ", ".join([b.get("media", "") for b in game_details.get("broadcasts", []) if b.get("media")]),
+                "conference":
+                    game_details.get("groups", {}).get("name", ""),
             }
 
             # Process officials/referees
@@ -145,6 +289,18 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
                     "order": official.get("order", 0)
                 }
                 officials_data.append(official_data)
+
+            # Process broadcasts data
+            for broadcast in game_details.get("broadcasts", []):
+                broadcast_data = {
+                    "game_id": game_id,
+                    "type": broadcast.get("type", ""),
+                    "market": broadcast.get("market", ""),
+                    "media": broadcast.get("media", ""),
+                    "lang": broadcast.get("lang", ""),
+                    "region": broadcast.get("region", "")
+                }
+                broadcasts_data.append(broadcast_data)
 
             # 2. Extract team information
             for team in game_details["teams"]:
@@ -299,74 +455,111 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
                         "home_away": home_away,
                     }
 
+                    # Add the points from the team's score in game details
+                    for team_info in game_details.get("teams", []):
+                        if team_info.get("id") == team_id:
+                            try:
+                                team_record["PTS"] = int(team_info.get("score", 0))
+                            except (ValueError, TypeError):
+                                team_record["PTS"] = 0
+                            break
+
                     # Process statistics
                     if 'statistics' in team_data and isinstance(team_data['statistics'], list):
                         for stat in team_data['statistics']:
                             if not isinstance(stat, dict):
                                 continue
 
-                            stat_name = stat.get('name', '')
+                            # Get the values we need
                             display_value = stat.get('displayValue', '')
-                            abbreviation = stat.get('abbreviation', '')
-                            label = stat.get('label', '')
 
-                            # Skip if no name
-                            if not stat_name:
+                            # Directly use abbreviation if available, fall back to label or name
+                            column_name = stat.get('abbreviation', '') or stat.get('label', '') or stat.get('name', '')
+
+                            # Skip if no column name or already processed
+                            if not column_name or column_name in team_record:
                                 continue
 
                             # Store the display value
-                            team_record[stat_name] = display_value
+                            team_record[column_name] = display_value
 
-                            # Also store parsed values for some common stats
-                            if stat_name == 'fieldGoalsMade-fieldGoalsAttempted' and '-' in display_value:
+                            # Process combined stats like FG, 3PT, FT
+                            if column_name in ['FG', '3PT', 'FT'] and '-' in display_value:
                                 try:
                                     made, attempted = display_value.split('-')
-                                    team_record['fieldGoalsMade'] = int(made)
-                                    team_record['fieldGoalsAttempted'] = int(attempted)
+                                    team_record[f"{column_name}_MADE"] = int(made)
+                                    team_record[f"{column_name}_ATT"] = int(attempted)
+
+                                    # Calculate percentage
+                                    try:
+                                        pct = round(int(made) / int(attempted) * 100 if int(attempted) > 0 else 0, 1)
+                                        team_record[f"{column_name}_PCT"] = pct
+                                    except (ValueError, ZeroDivisionError):
+                                        team_record[f"{column_name}_PCT"] = 0
                                 except (ValueError, TypeError):
                                     pass
 
-                            elif stat_name == 'threePointFieldGoalsMade-threePointFieldGoalsAttempted' and '-' in display_value:
-                                try:
-                                    made, attempted = display_value.split('-')
-                                    team_record['threePointFieldGoalsMade'] = int(made)
-                                    team_record['threePointFieldGoalsAttempted'] = int(attempted)
-                                except (ValueError, TypeError):
-                                    pass
-
-                            elif stat_name == 'freeThrowsMade-freeThrowsAttempted' and '-' in display_value:
-                                try:
-                                    made, attempted = display_value.split('-')
-                                    team_record['freeThrowsMade'] = int(made)
-                                    team_record['freeThrowsAttempted'] = int(attempted)
-                                except (ValueError, TypeError):
-                                    pass
-
-                            # Convert percentage values
-                            elif 'Pct' in stat_name:
-                                try:
-                                    team_record[stat_name] = float(display_value)
-                                except (ValueError, TypeError):
-                                    pass
-
-                            # Convert pure numeric values
+                            # Convert numeric values
                             elif display_value.replace('.', '', 1).isdigit():
                                 try:
                                     if '.' in display_value:
-                                        team_record[stat_name] = float(display_value)
+                                        team_record[column_name] = float(display_value)
                                     else:
-                                        team_record[stat_name] = int(display_value)
+                                        team_record[column_name] = int(display_value)
                                 except (ValueError, TypeError):
                                     pass
 
-                            # Also store with the abbreviation if available for easier access
-                            if abbreviation and abbreviation != stat_name:
-                                team_record[abbreviation] = team_record[stat_name]
+                    # Post-process to fix just a few inconsistencies and remove duplicates
+                    standardize_map = {
+                        # Rebound standardization (since OR/DR vs OREB/DREB is inconsistent)
+                        'OR': 'OREB',
+                        'DR': 'DREB',
+                        # Remove duplicate percentage columns
+                        'FG%': None,
+                        '3P%': None,
+                        'FT%': None
+                    }
+
+                    # Convert verbose labels to standard abbreviations only when abbreviation is missing
+                    if 'Rebounds' in team_record and 'REB' not in team_record:
+                        team_record['REB'] = team_record.pop('Rebounds')
+                    if 'Offensive Rebounds' in team_record and 'OREB' not in team_record:
+                        team_record['OREB'] = team_record.pop('Offensive Rebounds')
+                    if 'Defensive Rebounds' in team_record and 'DREB' not in team_record:
+                        team_record['DREB'] = team_record.pop('Defensive Rebounds')
+                    if 'Assists' in team_record and 'AST' not in team_record:
+                        team_record['AST'] = team_record.pop('Assists')
+                    if 'Steals' in team_record and 'STL' not in team_record:
+                        team_record['STL'] = team_record.pop('Steals')
+                    if 'Blocks' in team_record and 'BLK' not in team_record:
+                        team_record['BLK'] = team_record.pop('Blocks')
+                    if 'Turnovers' in team_record and 'TO' not in team_record:
+                        team_record['TO'] = team_record.pop('Turnovers')
+                    if 'Fouls' in team_record and 'PF' not in team_record:
+                        team_record['PF'] = team_record.pop('Fouls')
+
+                    # Apply the small standardization map for the few edge cases
+                    for old_name, new_name in standardize_map.items():
+                        if old_name in team_record:
+                            if new_name:  # Rename column
+                                team_record[new_name] = team_record[old_name]
+                            # Always remove old name
+                            team_record.pop(old_name)
 
                     team_stats.append(team_record)
 
             # 4. Extract play-by-play data
             if 'plays' in game_data:
+                # Create a mapping of playId to win probability data if available
+                win_prob_mapping = {}
+                if 'winprobability' in game_data and isinstance(game_data['winprobability'], list):
+                    for prob in game_data['winprobability']:
+                        if isinstance(prob, dict) and 'playId' in prob:
+                            win_prob_mapping[prob['playId']] = {
+                                'home_win_percentage': prob.get('homeWinPercentage', None),
+                                'tie_percentage': prob.get('tiePercentage', None)
+                            }
+
                 for play in game_data['plays']:
                     if not isinstance(play, dict):
                         continue
@@ -421,6 +614,15 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
                         "wallclock":
                             play.get("wallclock", ""),
                     }
+
+                    # Add win probability data if available for this play
+                    play_id = play.get("id", "")
+                    if play_id in win_prob_mapping:
+                        play_info["home_win_percentage"] = win_prob_mapping[play_id]["home_win_percentage"]
+                        play_info["away_win_percentage"] = 1.0 - win_prob_mapping[play_id][
+                            "home_win_percentage"] if win_prob_mapping[play_id][
+                                "home_win_percentage"] is not None else None
+                        play_info["tie_percentage"] = win_prob_mapping[play_id]["tie_percentage"]
 
                     # Add player information if available
                     if 'participants' in play and isinstance(play['participants'], list):
@@ -482,6 +684,12 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
             officials_df.to_csv(csv_game_dir / "officials.csv", index=False)
             officials_df.to_parquet(parquet_game_dir / "officials.parquet", index=False)
 
+        # Save broadcasts data
+        if broadcasts_data:
+            broadcasts_df = pd.DataFrame(broadcasts_data)
+            broadcasts_df.to_csv(csv_game_dir / "broadcasts.csv", index=False)
+            broadcasts_df.to_parquet(parquet_game_dir / "broadcasts.parquet", index=False)
+
         logger.info(f"Successfully processed and saved data for game {game_id} in season {season}")
 
         # Return all processed data for backward compatibility
@@ -491,7 +699,8 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
             "player_stats": player_stats,
             "team_stats": team_stats,
             "play_by_play": play_by_play,
-            "officials": officials_data
+            "officials": officials_data,
+            "broadcasts": broadcasts_data
         }
 
     except Exception as e:
@@ -773,80 +982,6 @@ def main() -> None:
 
     # Run the processor
     process_all_data(seasons=args.seasons, max_workers=args.max_workers)
-
-
-def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
-    """
-    Extract key game details like date, venue, etc. from game data.
-    
-    Args:
-        game_data: Raw game data from the API
-        
-    Returns:
-        Dictionary with extracted details
-    """
-    details = {
-        "date": None,
-        "venue_name": None,
-        "venue_location": None,
-        "attendance": None,
-        "teams": [],
-        "officials": []  # Added officials list
-    }
-
-    if not game_data:
-        return details
-
-    # Extract date from competitions array
-    if 'header' in game_data and 'competitions' in game_data['header'] and game_data['header']['competitions']:
-        details["date"] = game_data['header']['competitions'][0].get('date')
-
-        # Extract team information from competitions
-        if 'competitors' in game_data['header']['competitions'][0]:
-            for competitor in game_data['header']['competitions'][0]['competitors']:
-                if 'team' in competitor:
-                    team_info = {
-                        "id": competitor['team'].get('id', ''),
-                        "display_name": competitor['team'].get('displayName', ''),
-                        "abbreviation": competitor['team'].get('abbreviation', ''),
-                        "location": competitor['team'].get('location', ''),
-                        "name": competitor['team'].get('name', ''),
-                        "color": competitor['team'].get('color', ''),
-                        "home_away": competitor.get('homeAway', ''),
-                        "winner": competitor.get('winner', False),
-                        "score": competitor.get('score', 0)
-                    }
-                    details["teams"].append(team_info)
-
-    # Extract venue information from gameInfo
-    if 'gameInfo' in game_data and 'venue' in game_data['gameInfo']:
-        venue = game_data['gameInfo']['venue']
-        details["venue_name"] = venue.get('fullName')
-
-        # Get venue location
-        if 'address' in venue:
-            city = venue['address'].get('city', '')
-            state = venue['address'].get('state', '')
-            if city and state:
-                details["venue_location"] = f"{city}, {state}"
-
-    # Extract attendance
-    if 'gameInfo' in game_data and 'attendance' in game_data['gameInfo']:
-        details["attendance"] = game_data['gameInfo']['attendance']
-
-    # Extract officials/referees
-    if 'gameInfo' in game_data and 'officials' in game_data['gameInfo']:
-        for official in game_data['gameInfo']['officials']:
-            official_info = {
-                "name": official.get('fullName', ''),
-                "display_name": official.get('displayName', ''),
-                "position": official.get('position', {}).get('displayName', ''),
-                "position_id": official.get('position', {}).get('id', ''),
-                "order": official.get('order', 0)
-            }
-            details["officials"].append(official_info)
-
-    return details
 
 
 if __name__ == "__main__":
