@@ -55,7 +55,7 @@ def set_gender(gender: str) -> None:
     if gender not in ["mens", "womens"]:
         raise ValueError("Gender must be either 'mens' or 'womens'")
     CURRENT_GENDER = gender
-    logger.info(f"Set current gender to {CURRENT_GENDER}")
+    # logger.info(f"Set current gender to {CURRENT_GENDER}")
 
 
 def get_current_gender() -> str:

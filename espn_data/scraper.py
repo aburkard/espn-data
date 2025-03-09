@@ -53,37 +53,55 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
     logger.info("Fetching all teams data")
 
     try:
-        data = make_request(get_teams_url())
+        # Initialize parameters for pagination
+        limit = 500  # Set a high limit to minimize API calls
+        page = 1
+        all_teams = []
+        has_more = True
 
-        if not data or "sports" not in data:
-            logger.error("Failed to get teams data")
-            return []
+        # Continue fetching until there are no more teams to retrieve
+        while has_more:
+            params = {'limit': limit, 'page': page}
 
-        # Extract all team info
-        teams = []
-        sports = data.get("sports", [])
+            logger.info(f"Fetching teams - page {page}, limit {limit}")
+            data = make_request(get_teams_url(), params=params)
 
-        for sport in sports:
-            leagues = sport.get("leagues", [])
+            if not data or "sports" not in data:
+                logger.error(f"Failed to get teams data on page {page}")
+                break
 
-            for league in leagues:
-                team_list = league.get("teams", [])
+            # Extract teams from current page
+            teams = []
+            sports = data.get("sports", [])
 
-                for team_entry in team_list:
-                    team = team_entry.get("team", {})
-                    teams.append(team)
+            for sport in sports:
+                leagues = sport.get("leagues", [])
+
+                for league in leagues:
+                    team_list = league.get("teams", [])
+
+                    for team_entry in team_list:
+                        team = team_entry.get("team", {})
+                        teams.append(team)
+
+            # Add teams from current page to the overall list
+            all_teams.extend(teams)
+
+            # Check if we got fewer teams than the limit, which means we've reached the end
+            has_more = len(teams) >= limit
+            page += 1
+
+        logger.info(f"Found {len(all_teams)} teams across {page-1} pages")
 
         # Limit number of teams for testing
         if max_teams:
-            teams = teams[:max_teams]
-
-        logger.info(f"Found {len(teams)} teams")
+            all_teams = all_teams[:max_teams]
 
         # Remove the save operation - let caller handle saving
         # os.makedirs(teams_file.parent, exist_ok=True)
         # save_json(teams, teams_file)
 
-        return teams
+        return all_teams
 
     except Exception as e:
         logger.error(f"Error fetching teams: {e}")
@@ -91,59 +109,60 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
 
 
 def get_team_schedule(team_id: str,
-                      seasons: Optional[List[int]] = None,
+                      season: Optional[int] = None,
                       gender: str = None,
-                      force: bool = False) -> List[Dict[str, Any]]:
+                      force: bool = False) -> Dict[str, Any]:
     """
-    Get schedule data for a team across specified seasons.
+    Get schedule data for a team for a specific season.
     
     Args:
         team_id: ESPN team ID
-        seasons: List of seasons to get schedule for
+        season: Season year to get schedule for (e.g., 2022 for 2021-2022 season)
         gender: Either "mens" or "womens" (if None, uses current setting)
         force: If True, force refetch even if data exists
         
     Returns:
-        List of game data dictionaries
+        Dictionary containing game data
     """
     if gender:
         set_gender(gender)
 
-    if not seasons:
+    if not season:
         # Default to current season
         now = datetime.now()
-        current_year = now.year
-        seasons = [current_year if now.month > 6 else current_year - 1]
+        season = now.year if now.month > 6 else now.year - 1
 
-    logger.info(f"Fetching schedule for team {team_id} for seasons {seasons}")
-    all_games = []
+    logger.info(f"Fetching schedule for team {team_id} for season {season}")
 
-    for season in seasons:
-        # Check if schedule already exists
-        output_file = get_schedules_dir(season) / f"{team_id}.json"
-        if not force and output_file.exists():
-            logger.info(f"Using cached schedule for team {team_id} in season {season}")
-            games = load_json(output_file)
-            if games:
-                all_games.extend(games.get("events", []))
-            continue
+    # Check if schedule already exists
+    output_file = get_schedules_dir(season) / f"{team_id}.json"
+    if not force and output_file.exists():
+        logger.info(f"Using cached schedule for team {team_id} in season {season}")
+        return load_json(output_file)
 
-        params = get_team_schedule_params(team_id, season)
-        url = get_team_schedule_url().format(team_id=team_id)
+    params = get_team_schedule_params(team_id, season)
+    url = get_team_schedule_url().format(team_id=team_id)
 
-        try:
-            data = make_request(url, params)
-            games = data
+    try:
+        data = make_request(url, params)
 
-            # Note: Removed save_json call here to avoid double-saving
+        # Filter to only include games for the requested season
+        if data and "events" in data:
+            season_games = []
+            for game in data.get("events", []):
+                if "season" in game and "year" in game["season"]:
+                    game_season = game["season"]["year"]
+                    if game_season == season:
+                        season_games.append(game)
 
-            if games:
-                all_games.extend(games.get("events", []))
+            # Replace all events with only those from the requested season
+            data["events"] = season_games
 
-        except Exception as e:
-            logger.error(f"Error fetching schedule for team {team_id} in season {season}: {e}")
+        return data or {"events": []}
 
-    return {"events": all_games}
+    except Exception as e:
+        logger.error(f"Error fetching schedule for team {team_id} in season {season}: {e}")
+        return {"events": []}
 
 
 def get_game_data(game_id: str, season: int, gender: str = None, force: bool = False) -> Dict[str, Any]:
@@ -409,7 +428,7 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
             if not force and team_schedules_file.exists():
                 logger.info(f"Using cached schedule for team {team_id} in season {season}")
             else:
-                games = get_team_schedule(team_id, [season], gender, force)
+                games = get_team_schedule(team_id, season, gender, force)
 
                 # Save schedule data for this season
                 output_file = schedules_dir / f"{team_id}.json"
@@ -417,22 +436,22 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
         else:
             # Get schedules for all teams
             for team in teams:
-                team_id = team["id"]
-                team_schedules_file = schedules_dir / f"{team_id}.json"
+                team_id_inner = team["id"]
+                team_schedules_file = schedules_dir / f"{team_id_inner}.json"
 
                 if not force and team_schedules_file.exists():
-                    logger.info(f"Using cached schedule for team {team_id} in season {season}")
+                    logger.info(f"Using cached schedule for team {team_id_inner} in season {season}")
                     continue
 
                 try:
-                    games = get_team_schedule(team_id, [season], gender, force)
+                    games = get_team_schedule(team_id_inner, season, gender, force)
 
                     # Save schedule data for this season
-                    output_file = schedules_dir / f"{team_id}.json"
+                    output_file = schedules_dir / f"{team_id_inner}.json"
                     save_json(games, output_file)
 
                 except Exception as e:
-                    logger.error(f"Error getting schedule for team {team_id}: {e}")
+                    logger.error(f"Error getting schedule for team {team_id_inner}: {e}")
 
     # Step 3: Extract unique game IDs from all team schedules
     game_ids = extract_game_ids_from_schedules(seasons, gender)
