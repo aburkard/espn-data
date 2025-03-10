@@ -147,6 +147,9 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
         "status": {},  # Changed to empty dict from None
         "broadcasts": [],  # Added broadcasts field
         "groups": {},  # Changed to empty dict from None
+        "boxscore_available": False,  # Added flag for boxscore availability
+        "boxscore_source": None,  # Added source of boxscore data
+        "play_by_play_source": None,  # Added source of play-by-play data
     }
 
     if not game_data:
@@ -171,6 +174,13 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
                 # Extract neutral site info
                 details["neutral_site"] = competition.get('neutralSite', False)
 
+                # Extract boxscore availability information
+                details["boxscore_available"] = competition.get('boxscoreAvailable', False)
+                details["boxscore_source"] = competition.get('boxscoreSource')
+                details["play_by_play_source"] = competition.get('playByPlaySource')
+                logger.debug(f"Game {game_id}: Boxscore available: {details['boxscore_available']}, "
+                             f"Source: {details['boxscore_source']}, PBP Source: {details['play_by_play_source']}")
+
                 # Extract team information from competitions
                 competitors = competition.get('competitors', [])
                 if competitors and isinstance(competitors, list):
@@ -183,6 +193,36 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
                         if not team or not isinstance(team, dict):
                             continue
 
+                        # Extract linescores (per-quarter or per-half scoring)
+                        linescores = []
+                        competitor_linescores = competitor.get('linescores', [])
+                        if competitor_linescores and isinstance(competitor_linescores, list):
+                            for linescore in competitor_linescores:
+                                if isinstance(linescore, dict):
+                                    linescores.append(linescore.get('displayValue', ''))
+
+                        # Extract team division/conference information
+                        team_groups = team.get('groups', {})
+                        division_info = {}
+                        conference_info = {}
+
+                        if team_groups and isinstance(team_groups, dict):
+                            # Get conference info
+                            conference_info = {
+                                "id": team_groups.get('id'),
+                                "name": team_groups.get('name', ''),
+                                "slug": team_groups.get('slug', '')
+                            }
+
+                            # Get division info if available
+                            parent = team_groups.get('parent', {})
+                            if parent and isinstance(parent, dict):
+                                division_info = {
+                                    "id": parent.get('id'),
+                                    "name": parent.get('name', ''),
+                                    "slug": parent.get('slug', '')
+                                }
+
                         team_info = {
                             "id": team.get('id', ''),
                             "display_name": team.get('displayName', ''),
@@ -192,8 +232,24 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
                             "color": team.get('color', ''),
                             "home_away": competitor.get('homeAway', ''),
                             "winner": competitor.get('winner', False),
-                            "score": competitor.get('score', 0)
+                            "score": competitor.get('score', 0),
+                            "linescores": linescores,
+                            "division": division_info,
+                            "conference": conference_info,
+                            "record": []
                         }
+
+                        # Extract team record information
+                        records = competitor.get('record', [])
+                        if records and isinstance(records, list):
+                            for record in records:
+                                if isinstance(record, dict):
+                                    team_info["record"].append({
+                                        "type": record.get('type', ''),
+                                        "summary": record.get('summary', ''),
+                                        "display_value": record.get('displayValue', '')
+                                    })
+
                         details["teams"].append(team_info)
 
                     logger.debug(f"Game {game_id}: Extracted {len(details['teams'])} teams")
@@ -272,7 +328,11 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
                         "color": team.get('color', ''),
                         "home_away": box_team.get('homeAway', ''),
                         "winner": False,  # Can't determine from boxscore alone
-                        "score": 0  # Will need to calculate from statistics
+                        "score": 0,  # Will need to calculate from statistics
+                        "linescores": [],  # Empty for boxscore data
+                        "division": {},  # Empty for boxscore data
+                        "conference": {},  # Empty for boxscore data
+                        "record": []  # Empty for boxscore data
                     }
                     details["teams"].append(team_info)
 
