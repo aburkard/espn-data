@@ -358,21 +358,16 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
 def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[str, Any]:
     """
     Process game data into structured format with game info, team stats, and play-by-play data.
-    For each game, saves individual files for each data type.
     
     Args:
         game_id: The ESPN game ID
         season: The season this game belongs to
-        force: If True, force reprocessing even if processed files exist
+        force: If True, force reprocessing even if processed data exists
         
     Returns:
-        Dictionary containing processed game data (also saved to individual files)
+        Dictionary containing processed game data structures
     """
-    # Check if processed data already exists
-    csv_game_dir = get_csv_games_dir(season) / game_id
-    if not force and csv_game_dir.exists() and (csv_game_dir / "game_info.csv").exists():
-        logger.info(f"Using cached processed data for game {game_id}")
-        return {"game_id": game_id, "season": season, "processed": True}
+    # We no longer check for individual files since we don't save them anymore
 
     try:
         # Get raw game data
@@ -815,67 +810,29 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
 
                     play_by_play.append(play_info)
 
-        # Save individual files for each data type in separate format directories
-        csv_game_dir = get_csv_games_dir(season) / game_id
-        parquet_game_dir = get_parquet_games_dir(season) / game_id
-
-        os.makedirs(csv_game_dir, exist_ok=True)
-        os.makedirs(parquet_game_dir, exist_ok=True)
-
-        # Save as separate CSV and Parquet
-        if game_info:
-            game_df = pd.DataFrame([game_info])
-            game_df.to_csv(csv_game_dir / "game_info.csv", index=False)
-            game_df.to_parquet(parquet_game_dir / "game_info.parquet", index=False)
-
-        if teams_info:
-            teams_df = pd.DataFrame(teams_info)
-            teams_df.to_csv(csv_game_dir / "teams_info.csv", index=False)
-            teams_df.to_parquet(parquet_game_dir / "teams_info.parquet", index=False)
-
-        if player_stats:
-            players_df = pd.DataFrame(player_stats)
-            players_df.to_csv(csv_game_dir / "player_stats.csv", index=False)
-            players_df.to_parquet(parquet_game_dir / "player_stats.parquet", index=False)
-
-        if team_stats:
-            team_stats_df = pd.DataFrame(team_stats)
-            team_stats_df.to_csv(csv_game_dir / "team_stats.csv", index=False)
-            team_stats_df.to_parquet(parquet_game_dir / "team_stats.parquet", index=False)
-
-        if play_by_play:
-            pbp_df = pd.DataFrame(play_by_play)
-            pbp_df.to_csv(csv_game_dir / "play_by_play.csv", index=False)
-            pbp_df.to_parquet(parquet_game_dir / "play_by_play.parquet", index=False)
-
-        # Save officials data
-        if officials_data:
-            officials_df = pd.DataFrame(officials_data)
-            officials_df.to_csv(csv_game_dir / "officials.csv", index=False)
-            officials_df.to_parquet(parquet_game_dir / "officials.parquet", index=False)
-
-        # Save broadcasts data
-        if broadcasts_data:
-            broadcasts_df = pd.DataFrame(broadcasts_data)
-            broadcasts_df.to_csv(csv_game_dir / "broadcasts.csv", index=False)
-            broadcasts_df.to_parquet(parquet_game_dir / "broadcasts.parquet", index=False)
-
-        logger.info(f"Successfully processed and saved data for game {game_id} in season {season}")
-
-        # Return all processed data for backward compatibility
-        return {
-            "game_info": game_info,
-            "teams_info": teams_info,
-            "player_stats": player_stats,
-            "team_stats": team_stats,
-            "play_by_play": play_by_play,
-            "officials": officials_data,
-            "broadcasts": broadcasts_data
+        # Instead of saving individual files, return all the processed data
+        result = {
+            "game_id": game_id,
+            "season": season,
+            "processed": True,
+            "data": {
+                "game_info": pd.DataFrame([game_info]) if game_info else pd.DataFrame(),
+                "teams_info": pd.DataFrame(teams_info) if teams_info else pd.DataFrame(),
+                "player_stats": pd.DataFrame(player_stats) if player_stats else pd.DataFrame(),
+                "team_stats": pd.DataFrame(team_stats) if team_stats else pd.DataFrame(),
+                "play_by_play": pd.DataFrame(play_by_play) if play_by_play else pd.DataFrame(),
+                "officials": pd.DataFrame(officials_data) if officials_data else pd.DataFrame(),
+                "broadcasts": pd.DataFrame(broadcasts_data) if broadcasts_data else pd.DataFrame()
+            }
         }
 
+        logger.info(f"Successfully processed data for game {game_id} in season {season}")
+
+        return result
+
     except Exception as e:
-        logger.error(f"Error processing game {game_id} in season {season}: {e}")
-        return {}
+        logger.error(f"Error processing game {game_id} in season {season}: {str(e)}")
+        return {"game_id": game_id, "season": season, "processed": False, "error": str(e)}
 
 
 def process_game_with_season(args):
@@ -886,7 +843,7 @@ def process_game_with_season(args):
         args: Tuple of (game_id, season, force)
     
     Returns:
-        Result of process_game_data
+        Result of process_game_data with processed data structures
     """
     game_id, season, force = args
     return process_game_data(game_id, season, force)
@@ -896,7 +853,14 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
     """
     Process all games for a specific season.
     
-    Each game data is processed and saved to individual files.
+    Processes all games and saves consolidated data files for each data type:
+    - game_info.csv/parquet: All game information
+    - teams_info.csv/parquet: All teams information 
+    - player_stats.csv/parquet: All player statistics
+    - team_stats.csv/parquet: All team statistics
+    - play_by_play.csv/parquet: All play-by-play data
+    - officials.csv/parquet: All officials data
+    - broadcasts.csv/parquet: All broadcast information
     
     Args:
         season: Season year to process
@@ -921,8 +885,16 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
 
     logger.info(f"Found {len(game_ids)} games to process for season {season}")
 
-    # Process games in parallel - each game will save its own files
+    # Process games in parallel and collect data for consolidated files
     results = []
+    game_results = {}
+
+    # Initialize empty DataFrames for each data type to hold all games' data
+    for data_type in [
+            "game_info", "teams_info", "player_stats", "team_stats", "play_by_play", "officials", "broadcasts"
+    ]:
+        game_results[data_type] = []
+
     if game_ids:
         with ProcessPoolExecutor(max_workers=max_workers) as executor:
             # Create argument list for each game
@@ -931,6 +903,13 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
             # Process games in parallel
             for result in executor.map(process_game_with_season, args_list):
                 results.append(result)
+
+                # For successful processing, collect the data for consolidation
+                if result.get("processed", False) and "data" in result:
+                    # Collect each data type
+                    for data_type, df in result["data"].items():
+                        if not df.empty:
+                            game_results[data_type].append(df)
 
     # Create and save game summary dataframe for this season
     processed_games = [r for r in results if r.get("processed", False)]
@@ -955,7 +934,25 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
     summary_df.to_csv(csv_season_dir / "game_summary.csv", index=False)
     summary_df.to_parquet(parquet_season_dir / "game_summary.parquet", index=False)
 
-    return {"game_summary": summary_df}
+    # Create consolidated DataFrames and save to files
+    consolidated_dfs = {}
+    for data_type, dataframes in game_results.items():
+        if dataframes:
+            try:
+                # Concatenate all dataframes for this data type
+                combined_df = pd.concat(dataframes, ignore_index=True)
+                consolidated_dfs[data_type] = combined_df
+
+                # Save as CSV and Parquet
+                combined_df.to_csv(csv_season_dir / f"{data_type}.csv", index=False)
+                combined_df.to_parquet(parquet_season_dir / f"{data_type}.parquet", index=False)
+
+                logger.info(f"Saved consolidated {data_type} data with {len(combined_df)} records for season {season}")
+            except Exception as e:
+                logger.error(f"Error saving consolidated {data_type} data for season {season}: {str(e)}")
+                consolidated_dfs[data_type] = pd.DataFrame()
+
+    return {"game_summary": summary_df, **consolidated_dfs}
 
 
 def process_schedules(season: int, force: bool = False) -> pd.DataFrame:
