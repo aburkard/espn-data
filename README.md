@@ -110,7 +110,7 @@ data/
 │       └── 2022/
 │           └── ...
 │
-├── processed/                  (Processed data in various formats)
+└── processed/                  (Processed data in various formats)
     ├── mens/                   (Processed men's data)
     │   ├── csv/
     │   │   ├── teams.csv       (All men's teams)
@@ -145,6 +145,41 @@ For each game, the following data types are extracted:
 - Process data season by season to manage memory usage
 - Parquet files are more efficient for analysis than CSV files
 - For large datasets, consider using `--max-workers` to adjust parallel processing
+
+## Testing
+
+The project includes a comprehensive test suite to verify data scraping and processing functionality. Tests are written using pytest and can be run using the provided `run_tests.py` script.
+
+### Running Tests
+
+To run all tests:
+
+```bash
+python run_tests.py
+```
+
+To run specific tests by keyword:
+
+```bash
+python run_tests.py -k "test_name"
+```
+
+For example, to run only the stats processing tests:
+
+```bash
+python run_tests.py -k "stats"
+```
+
+### Test Structure
+
+The tests are organized into the following files:
+
+- `test_game_data.py`: Tests for game data processing
+- `test_stats.py`: Tests for player and team statistics processing
+- `test_teams.py`: Tests for team data retrieval
+- `test_integration.py`: Integration tests that test the complete data pipeline
+
+For more details about the tests, see the [tests/README.md](tests/README.md) file.
 
 ## License
 
