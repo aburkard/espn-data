@@ -253,9 +253,16 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
         broadcasts_found = True
         for broadcast in game_data['broadcasts']:
             if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
-                # Ensure market is a string before calling lower()
-                market = broadcast.get('market', '')
-                if isinstance(market, str) and market.lower() == 'national':
+                # Handle market as an object with type property
+                market_obj = broadcast.get('market', {})
+                market_type = ""
+
+                if isinstance(market_obj, dict) and 'type' in market_obj:
+                    market_type = market_obj.get('type', '')
+                elif isinstance(market_obj, str):
+                    market_type = market_obj
+
+                if isinstance(market_type, str) and market_type.lower() == 'national':
                     # Make sure media is a dictionary
                     media = broadcast.get('media', {})
                     if isinstance(media, dict):
@@ -264,9 +271,9 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                         game_details["broadcast"] = media
                     else:
                         game_details["broadcast"] = ""
-                    # Ensure market is a non-empty string
-                    if market:
-                        game_details["broadcast_market"] = market
+                    # Set the market type
+                    if market_type:
+                        game_details["broadcast_market"] = market_type
                     break
 
         # If no national broadcast found, use the first available one
@@ -280,10 +287,17 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                 else:
                     game_details["broadcast"] = ""
 
-                market = game_data['broadcasts'][0].get('market', '')
-                # Ensure market is a non-empty string
-                if isinstance(market, str) and market:
-                    game_details["broadcast_market"] = market
+                market_obj = game_data['broadcasts'][0].get('market', {})
+                market_type = ""
+
+                if isinstance(market_obj, dict) and 'type' in market_obj:
+                    market_type = market_obj.get('type', '')
+                elif isinstance(market_obj, str):
+                    market_type = market_obj
+
+                # Set the market type
+                if isinstance(market_type, str) and market_type:
+                    game_details["broadcast_market"] = market_type
 
     # Check in header.competitions[0].broadcasts
     if not broadcasts_found and 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
@@ -294,9 +308,16 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
             broadcasts_found = True
             for broadcast in competition['broadcasts']:
                 if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
-                    # Ensure market is a string before calling lower()
-                    market = broadcast.get('market', '')
-                    if isinstance(market, str) and market.lower() == 'national':
+                    # Handle market as an object with type property
+                    market_obj = broadcast.get('market', {})
+                    market_type = ""
+
+                    if isinstance(market_obj, dict) and 'type' in market_obj:
+                        market_type = market_obj.get('type', '')
+                    elif isinstance(market_obj, str):
+                        market_type = market_obj
+
+                    if isinstance(market_type, str) and market_type.lower() == 'national':
                         # Make sure media is a dictionary or string
                         media = broadcast.get('media', {})
                         if isinstance(media, dict):
@@ -305,9 +326,9 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                             game_details["broadcast"] = media
                         else:
                             game_details["broadcast"] = ""
-                        # Ensure market is a non-empty string
-                        if market:
-                            game_details["broadcast_market"] = market
+                        # Set the market type
+                        if market_type:
+                            game_details["broadcast_market"] = market_type
                         break
 
             # If no national broadcast found, use the first available one
@@ -321,19 +342,33 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                     else:
                         game_details["broadcast"] = ""
 
-                    market = competition['broadcasts'][0].get('market', '')
-                    # Ensure market is a non-empty string
-                    if isinstance(market, str) and market:
-                        game_details["broadcast_market"] = market
+                    market_obj = competition['broadcasts'][0].get('market', {})
+                    market_type = ""
+
+                    if isinstance(market_obj, dict) and 'type' in market_obj:
+                        market_type = market_obj.get('type', '')
+                    elif isinstance(market_obj, str):
+                        market_type = market_obj
+
+                    # Set the market type
+                    if isinstance(market_type, str) and market_type:
+                        game_details["broadcast_market"] = market_type
 
     # Check in gameInfo.broadcast
     if not broadcasts_found and 'gameInfo' in game_data and 'broadcasts' in game_data['gameInfo'] and isinstance(
             game_data['gameInfo']['broadcasts'], list) and len(game_data['gameInfo']['broadcasts']) > 0:
         for broadcast in game_data['gameInfo']['broadcasts']:
             if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
-                # Ensure market is a string before calling lower()
-                market = broadcast.get('market', '')
-                if isinstance(market, str) and market.lower() == 'national':
+                # Handle market as an object with type property
+                market_obj = broadcast.get('market', {})
+                market_type = ""
+
+                if isinstance(market_obj, dict) and 'type' in market_obj:
+                    market_type = market_obj.get('type', '')
+                elif isinstance(market_obj, str):
+                    market_type = market_obj
+
+                if isinstance(market_type, str) and market_type.lower() == 'national':
                     # Make sure media is a dictionary or string
                     media = broadcast.get('media', {})
                     if isinstance(media, dict):
@@ -342,9 +377,9 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                         game_details["broadcast"] = media
                     else:
                         game_details["broadcast"] = ""
-                    # Ensure market is a non-empty string
-                    if market:
-                        game_details["broadcast_market"] = market
+                    # Set the market type
+                    if market_type:
+                        game_details["broadcast_market"] = market_type
                     break
 
         # If no national broadcast found, use the first available one
@@ -359,10 +394,17 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                 else:
                     game_details["broadcast"] = ""
 
-                market = game_data['gameInfo']['broadcasts'][0].get('market', '')
-                # Ensure market is a non-empty string
-                if isinstance(market, str) and market:
-                    game_details["broadcast_market"] = market
+                market_obj = game_data['gameInfo']['broadcasts'][0].get('market', {})
+                market_type = ""
+
+                if isinstance(market_obj, dict) and 'type' in market_obj:
+                    market_type = market_obj.get('type', '')
+                elif isinstance(market_obj, str):
+                    market_type = market_obj
+
+                # Set the market type
+                if isinstance(market_type, str) and market_type:
+                    game_details["broadcast_market"] = market_type
 
     # Extract conference information if available
     if 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
