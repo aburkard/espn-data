@@ -157,46 +157,30 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
     top_keys = list(game_data.keys()) if isinstance(game_data, dict) else "Not a dictionary"
     logger.debug(f"Game {game_id}: Game data top-level keys: {top_keys}")
 
-    # Extract date from competitions array
+    # Extract date and team information - first try from header for backward compatibility
     header = game_data.get('header')
-    if header is None:
-        logger.warning(f"Game {game_id}: 'header' field is missing")
-    else:
-        competitions = header.get('competitions')
-        if not competitions:
-            logger.warning(f"Game {game_id}: 'competitions' field is missing or empty")
-        elif not isinstance(competitions, list):
-            logger.warning(f"Game {game_id}: 'competitions' is not a list")
-        elif len(competitions) == 0:
-            logger.warning(f"Game {game_id}: 'competitions' list is empty")
-        else:
+    if header is not None:
+        competitions = header.get('competitions', [])
+        if competitions and isinstance(competitions, list) and len(competitions) > 0:
             competition = competitions[0]
-            if not isinstance(competition, dict):
-                logger.warning(f"Game {game_id}: 'competition' is not a dictionary")
-            else:
+            if isinstance(competition, dict):
                 # Extract date
                 details["date"] = competition.get('date')
                 logger.debug(f"Game {game_id}: Date extracted: {details['date']}")
 
+                # Extract neutral site info
+                details["neutral_site"] = competition.get('neutralSite', False)
+
                 # Extract team information from competitions
-                competitors = competition.get('competitors')
-                if not competitors:
-                    logger.warning(f"Game {game_id}: 'competitors' field is missing or empty")
-                elif not isinstance(competitors, list):
-                    logger.warning(f"Game {game_id}: 'competitors' is not a list")
-                else:
+                competitors = competition.get('competitors', [])
+                if competitors and isinstance(competitors, list):
                     logger.debug(f"Game {game_id}: Found {len(competitors)} competitors")
                     for competitor in competitors:
                         if not isinstance(competitor, dict):
-                            logger.warning(f"Game {game_id}: 'competitor' is not a dictionary")
                             continue
 
-                        team = competitor.get('team')
-                        if not team:
-                            logger.warning(f"Game {game_id}: 'team' field is missing in competitor")
-                            continue
-                        elif not isinstance(team, dict):
-                            logger.warning(f"Game {game_id}: 'team' is not a dictionary")
+                        team = competitor.get('team', {})
+                        if not team or not isinstance(team, dict):
                             continue
 
                         team_info = {
@@ -215,18 +199,10 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
                     logger.debug(f"Game {game_id}: Extracted {len(details['teams'])} teams")
 
                 # Extract status information
-                status = competition.get('status')
-                if not status:
-                    logger.warning(f"Game {game_id}: 'status' field is missing")
-                elif not isinstance(status, dict):
-                    logger.warning(f"Game {game_id}: 'status' is not a dictionary")
-                else:
-                    status_type = status.get('type')
-                    if not status_type:
-                        logger.warning(f"Game {game_id}: 'status.type' field is missing")
-                    elif not isinstance(status_type, dict):
-                        logger.warning(f"Game {game_id}: 'status.type' is not a dictionary")
-                    else:
+                status = competition.get('status', {})
+                if status and isinstance(status, dict):
+                    status_type = status.get('type', {})
+                    if status_type and isinstance(status_type, dict):
                         details["status"] = {
                             "id": status_type.get('id', ''),
                             "name": status_type.get('name', ''),
@@ -239,20 +215,15 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
                         logger.debug(f"Game {game_id}: Status extracted, completed={details['status']['completed']}")
 
                 # Extract broadcasts information
-                broadcasts = competition.get('broadcasts')
-                if not broadcasts:
-                    logger.debug(f"Game {game_id}: No 'broadcasts' field or it's empty")
-                elif not isinstance(broadcasts, list):
-                    logger.warning(f"Game {game_id}: 'broadcasts' is not a list")
-                else:
+                broadcasts = competition.get('broadcasts', [])
+                if broadcasts and isinstance(broadcasts, list):
                     for broadcast in broadcasts:
                         if not isinstance(broadcast, dict):
-                            logger.warning(f"Game {game_id}: 'broadcast' is not a dictionary")
                             continue
 
-                        broadcast_type = broadcast.get('type')
-                        broadcast_market = broadcast.get('market')
-                        broadcast_media = broadcast.get('media')
+                        broadcast_type = broadcast.get('type', {})
+                        broadcast_market = broadcast.get('market', {})
+                        broadcast_media = broadcast.get('media', {})
 
                         broadcast_info = {
                             "type": broadcast_type.get('shortName', '') if isinstance(broadcast_type, dict) else '',
@@ -266,12 +237,8 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
                     logger.debug(f"Game {game_id}: Extracted {len(details['broadcasts'])} broadcasts")
 
                 # Extract groups (conference) information
-                groups = competition.get('groups')
-                if not groups:
-                    logger.debug(f"Game {game_id}: No 'groups' field or it's empty")
-                elif not isinstance(groups, dict):
-                    logger.warning(f"Game {game_id}: 'groups' is not a dictionary")
-                else:
+                groups = competition.get('groups', {})
+                if groups and isinstance(groups, dict):
                     details["groups"] = {
                         "id": groups.get('id', ''),
                         "name": groups.get('name', ''),
@@ -281,33 +248,53 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
                     }
                     logger.debug(f"Game {game_id}: Groups info extracted, name={details['groups']['name']}")
 
-                # Extract neutral site info
-                details["neutral_site"] = competition.get('neutralSite', False)
+    # Try to enhance team data with boxscore information if available
+    boxscore = game_data.get('boxscore', {})
+    if boxscore and isinstance(boxscore, dict):
+        boxscore_teams = boxscore.get('teams', [])
+        if boxscore_teams and isinstance(boxscore_teams, list):
+            # If we have no teams from header, create them from boxscore
+            if not details["teams"]:
+                for box_team in boxscore_teams:
+                    if not isinstance(box_team, dict):
+                        continue
+
+                    team = box_team.get('team', {})
+                    if not team or not isinstance(team, dict):
+                        continue
+
+                    team_info = {
+                        "id": team.get('id', ''),
+                        "display_name": team.get('displayName', ''),
+                        "abbreviation": team.get('abbreviation', ''),
+                        "location": team.get('location', ''),
+                        "name": team.get('name', ''),
+                        "color": team.get('color', ''),
+                        "home_away": box_team.get('homeAway', ''),
+                        "winner": False,  # Can't determine from boxscore alone
+                        "score": 0  # Will need to calculate from statistics
+                    }
+                    details["teams"].append(team_info)
+
+                logger.debug(f"Game {game_id}: Created {len(details['teams'])} teams from boxscore")
+
+            # Otherwise, enhance existing teams with additional boxscore data
+            else:
+                # This would be a place to add more detailed team statistics if needed
+                pass
 
     # Extract venue information from gameInfo
-    game_info = game_data.get('gameInfo')
-    if not game_info:
-        logger.debug(f"Game {game_id}: No 'gameInfo' field or it's empty")
-    elif not isinstance(game_info, dict):
-        logger.warning(f"Game {game_id}: 'gameInfo' is not a dictionary")
-    else:
-        venue = game_info.get('venue')
-        if not venue:
-            logger.debug(f"Game {game_id}: No 'venue' field in gameInfo or it's empty")
-        elif not isinstance(venue, dict):
-            logger.warning(f"Game {game_id}: 'venue' is not a dictionary")
-        else:
+    game_info = game_data.get('gameInfo', {})
+    if game_info and isinstance(game_info, dict):
+        venue = game_info.get('venue', {})
+        if venue and isinstance(venue, dict):
             details["venue_id"] = venue.get('id')
             details["venue_name"] = venue.get('fullName')
             logger.debug(f"Game {game_id}: Venue extracted: {details['venue_name']}")
 
             # Get venue location
-            address = venue.get('address')
-            if not address:
-                logger.debug(f"Game {game_id}: No 'address' field in venue or it's empty")
-            elif not isinstance(address, dict):
-                logger.warning(f"Game {game_id}: 'address' is not a dictionary")
-            else:
+            address = venue.get('address', {})
+            if address and isinstance(address, dict):
                 city = address.get('city', '')
                 state = address.get('state', '')
                 details["venue_city"] = city
@@ -322,18 +309,13 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
         logger.debug(f"Game {game_id}: Attendance: {attendance}")
 
         # Extract officials/referees
-        officials = game_info.get('officials')
-        if not officials:
-            logger.debug(f"Game {game_id}: No 'officials' field or it's empty")
-        elif not isinstance(officials, list):
-            logger.warning(f"Game {game_id}: 'officials' is not a list")
-        else:
+        officials = game_info.get('officials', [])
+        if officials and isinstance(officials, list):
             for official in officials:
                 if not isinstance(official, dict):
-                    logger.warning(f"Game {game_id}: 'official' is not a dictionary")
                     continue
 
-                position = official.get('position')
+                position = official.get('position', {})
                 official_info = {
                     "name": official.get('fullName', ''),
                     "display_name": official.get('displayName', ''),
