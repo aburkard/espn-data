@@ -189,7 +189,8 @@ def get_game_data(game_id: str, season: int, gender: str = None, force: bool = F
     Note:
         This function saves the game data to disk internally.
     """
-    if gender:
+    # Only set gender if explicitly passed
+    if gender is not None:
         set_gender(gender)
 
     # Check if game data already exists

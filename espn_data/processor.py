@@ -474,25 +474,30 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
     return game_details
 
 
-def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[str, Any]:
+def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
     """
-    Process game data into structured format with game info, team stats, and play-by-play data.
+    Process detailed data for a game.
     
     Args:
-        game_id: The ESPN game ID
-        season: The season this game belongs to
-        force: If True, force reprocessing even if processed data exists
+        game_id: ESPN game ID
+        season: Season year
         
     Returns:
-        Dictionary containing processed game data structures
+        Dictionary with processing results
     """
-    # We no longer check for individual files since we don't save them anymore
+    logger.debug(f"Processing game {game_id} for season {season}")
+    result = {"game_id": game_id, "season": season, "processed": False, "error": None}
+
+    # Ensure we're still using the correct gender
+    current_gender = get_current_gender()
+    logger.debug(f"Using gender: {current_gender}")
 
     try:
         # Get raw game data
         data_path = get_games_dir(season) / f"{game_id}.json"
         if not data_path.exists():
             logger.warning(f"Game data for {game_id} in season {season} not found. Fetching it now.")
+            # Don't pass gender here, as it will call set_gender and override our setting
             game_data = get_game_data(game_id, season)
         else:
             game_data = load_json(data_path)
@@ -1110,13 +1115,20 @@ def process_game_with_season(args):
     Helper function to unpack arguments for process_game_data.
     
     Args:
-        args: Tuple of (game_id, season, force)
+        args: Tuple of (game_id, season, force, gender)
     
     Returns:
         Result of process_game_data with processed data structures
     """
-    game_id, season, force = args
-    return process_game_data(game_id, season, force)
+    if len(args) == 4:
+        game_id, season, force, gender = args
+        # Ensure correct gender in child process
+        set_gender(gender)
+    else:
+        game_id, season, force = args
+
+    # Note: force parameter is not used by process_game_data
+    return process_game_data(game_id, season)
 
 
 def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
@@ -1515,10 +1527,16 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
     # Initialize game_summary as a special case
     game_results["game_summary"] = []
 
+    # Get current gender to pass to child processes
+    current_gender = get_current_gender()
+    logger.info(f"Processing games with gender: {current_gender}")
+
     # Process all games
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         # Submit all jobs
-        futures = [executor.submit(process_game_with_season, (game_id, season, force)) for game_id in game_ids]
+        futures = [
+            executor.submit(process_game_with_season, (game_id, season, force, current_gender)) for game_id in game_ids
+        ]
 
         # Process results as they complete
         for future in as_completed(futures):

@@ -1,12 +1,12 @@
 import pytest
 import time
 from espn_data.scraper import get_all_teams
-from espn_data.utils import get_team_count, make_request, TEAMS_URL
+from espn_data.utils import get_team_count, make_request, get_TEAMS_URL
 
 
 def test_direct_limit():
     """Test directly using the limit parameter."""
-    response = make_request(TEAMS_URL, params={"limit": 500})
+    response = make_request(get_TEAMS_URL(), params={"limit": 500})
 
     assert response is not None, "Failed to get response from teams API"
     assert "sports" in response, "Missing sports field in response"
@@ -27,7 +27,7 @@ def test_pagination():
         page = 1
 
         while True:
-            response = make_request(TEAMS_URL, params={"limit": page_size, "page": page})
+            response = make_request(get_TEAMS_URL(), params={"limit": page_size, "page": page})
 
             assert response is not None, f"Failed to get response for page {page}"
             assert "sports" in response, f"Missing sports field in response for page {page}"

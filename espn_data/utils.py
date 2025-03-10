@@ -40,8 +40,8 @@ URL_TEMPLATES = {
     }
 }
 
-# Default to women's basketball for backward compatibility
-CURRENT_GENDER = "womens"
+# Use None initially, will be set to "womens" by default on first call to set_gender or get_current_gender
+CURRENT_GENDER = None
 
 
 def set_gender(gender: str) -> None:
@@ -54,35 +54,41 @@ def set_gender(gender: str) -> None:
     global CURRENT_GENDER
     if gender not in ["mens", "womens"]:
         raise ValueError("Gender must be either 'mens' or 'womens'")
+    logger.info(f"Setting gender to {gender}")
     CURRENT_GENDER = gender
     # logger.info(f"Set current gender to {CURRENT_GENDER}")
 
 
 def get_current_gender() -> str:
     """Get the current gender setting."""
+    global CURRENT_GENDER
+    # Default to womens if not set
+    if CURRENT_GENDER is None:
+        CURRENT_GENDER = "womens"
+    logger.info(f"Current gender: {CURRENT_GENDER}")
     return CURRENT_GENDER
 
 
 # URL accessor functions
 def get_teams_url() -> str:
     """Get the teams URL for the current gender."""
-    return URL_TEMPLATES[CURRENT_GENDER]["TEAMS_URL"]
+    return URL_TEMPLATES[get_current_gender()]["TEAMS_URL"]
 
 
 def get_team_schedule_url() -> str:
     """Get the team schedule URL template for the current gender."""
-    return URL_TEMPLATES[CURRENT_GENDER]["TEAM_SCHEDULE_URL"]
+    return URL_TEMPLATES[get_current_gender()]["TEAM_SCHEDULE_URL"]
 
 
 def get_game_data_url() -> str:
     """Get the game data URL template for the current gender."""
-    return URL_TEMPLATES[CURRENT_GENDER]["GAME_DATA_URL"]
+    return URL_TEMPLATES[get_current_gender()]["GAME_DATA_URL"]
 
 
 # Create directory functions that include gender and seasons
 def get_raw_dir() -> Path:
-    """Get the base raw data directory."""
-    return DATA_DIR / "raw" / CURRENT_GENDER
+    """Get the raw data directory for the current gender."""
+    return DATA_DIR / "raw" / get_current_gender()
 
 
 def get_season_dir(base_dir: Path, season: int) -> Path:
@@ -106,8 +112,8 @@ def get_games_dir(season: int) -> Path:
 
 
 def get_processed_dir() -> Path:
-    """Get the base processed data directory."""
-    return DATA_DIR / "processed" / CURRENT_GENDER
+    """Get the processed data directory for the current gender."""
+    return DATA_DIR / "processed" / get_current_gender()
 
 
 def get_csv_dir() -> Path:
@@ -156,15 +162,32 @@ os.makedirs(DATA_DIR / "raw" / "mens", exist_ok=True)
 os.makedirs(DATA_DIR / "raw" / "womens", exist_ok=True)
 os.makedirs(DATA_DIR / "processed" / "mens", exist_ok=True)
 os.makedirs(DATA_DIR / "processed" / "womens", exist_ok=True)
-os.makedirs(get_csv_dir(), exist_ok=True)
-os.makedirs(get_parquet_dir(), exist_ok=True)
+os.makedirs(DATA_DIR / "processed" / "mens" / "csv", exist_ok=True)
+os.makedirs(DATA_DIR / "processed" / "mens" / "parquet", exist_ok=True)
+os.makedirs(DATA_DIR / "processed" / "womens" / "csv", exist_ok=True)
+os.makedirs(DATA_DIR / "processed" / "womens" / "parquet", exist_ok=True)
 
 # Season directories will be created as needed when processing data
 
-# For backward compatibility, replace direct URL constants with accessor functions
-TEAMS_URL = get_teams_url()
-TEAM_SCHEDULE_URL = get_team_schedule_url()
-GAME_DATA_URL = get_game_data_url()
+
+# For backward compatibility, we'll add property-like getters
+def get_TEAMS_URL():
+    return get_teams_url()
+
+
+def get_TEAM_SCHEDULE_URL():
+    return get_team_schedule_url()
+
+
+def get_GAME_DATA_URL():
+    return get_game_data_url()
+
+
+# These might be used elsewhere as constants, but we'll define them as None
+# and use the above functions to access them
+TEAMS_URL = None
+TEAM_SCHEDULE_URL = None
+GAME_DATA_URL = None
 
 # Request headers to mimic a browser
 HEADERS = {
@@ -312,7 +335,8 @@ def get_team_count() -> int:
     Returns:
         Total number of teams
     """
-    from espn_data.utils import make_request, TEAMS_URL
+    # Avoid circular import
+    from espn_data.utils import make_request
     import logging
 
     logger = logging.getLogger("espn_data")
@@ -320,7 +344,7 @@ def get_team_count() -> int:
     # Request with minimal data to get count
     params = {"limit": 1}
 
-    response = make_request(TEAMS_URL, params=params)
+    response = make_request(get_TEAMS_URL(), params=params)
 
     if not response or "sports" not in response:
         logger.error("Failed to retrieve teams count")
