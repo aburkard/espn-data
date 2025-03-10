@@ -163,7 +163,6 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
         "venue_state": "",
         "attendance": None,
         "status": "",
-        "state": "",
         "neutral_site": False,
         "format": None,
         "completed": False,
@@ -226,11 +225,9 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
 
     if status_type and isinstance(status_type, dict):
         game_details["status"] = status_type.get('name', '')
-        game_details["state"] = status_type.get('state', '')
         game_details["completed"] = status_type.get('completed', False)
     else:
         game_details["status"] = ''
-        game_details["state"] = ''
         game_details["completed"] = False
 
     # Extract neutral site information
@@ -488,47 +485,27 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
             logger.debug(f"Game {game_id}: Game details extracted, building game_info")
 
             game_info = {
-                "game_id":
-                    game_id,
-                "date":
-                    game_details["date"],
-                "venue_id":
-                    game_details["venue_id"],
-                "venue":
-                    game_details["venue"],
-                "venue_location":
-                    game_details["venue_location"],
-                "venue_city":
-                    game_details["venue_city"],
-                "venue_state":
-                    game_details["venue_state"],
-                "attendance":
-                    game_details["attendance"],
+                "game_id": game_id,
+                "date": game_details["date"],
+                "venue_id": game_details["venue_id"],
+                "venue": game_details["venue"],
+                "venue_location": game_details["venue_location"],
+                "venue_city": game_details["venue_city"],
+                "venue_state": game_details["venue_state"],
+                "attendance": game_details["attendance"],
                 "status": (game_details["status"] if isinstance(game_details.get("status"), str) else
                            (game_details.get("status", {}).get("description", "") or game_details.get("status", {}).get(
                                "short_detail", "") or game_details.get("status", {}).get("name", "")) if isinstance(
                                    game_details.get("status"), dict) else ""),
-                "state":
-                    game_details.get("status", {}).get("state", "")
-                    if isinstance(game_details.get("status"), dict) else "",
-                "neutral_site":
-                    game_details["neutral_site"],
-                "completed":
-                    game_details["completed"],
-                "broadcast":
-                    game_details["broadcast"],
-                "broadcast_market":
-                    game_details["broadcast_market"],
-                "conference":
-                    game_details["conference"],
-                "regulation_clock":
-                    game_details.get("regulation_clock", 600.0),
-                "overtime_clock":
-                    game_details.get("overtime_clock", 300.0),
-                "period_name":
-                    game_details.get("period_name", "Quarter"),
-                "num_periods":
-                    game_details.get("num_periods", 4)
+                "neutral_site": game_details["neutral_site"],
+                "completed": game_details["completed"],
+                "broadcast": game_details["broadcast"],
+                "broadcast_market": game_details["broadcast_market"],
+                "conference": game_details["conference"],
+                "regulation_clock": game_details.get("regulation_clock", 600.0),
+                "overtime_clock": game_details.get("overtime_clock", 300.0),
+                "period_name": game_details.get("period_name", "Quarter"),
+                "num_periods": game_details.get("num_periods", 4)
             }
 
             logger.debug(f"Game {game_id}: Game info built successfully")
@@ -1123,7 +1100,7 @@ def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
 
     # Common columns that should be categorical across all dataframes
     categorical_columns = [
-        "home_away", "type", "market", "lang", "region", "team_abbreviation", "position", "state", "status", "play_type"
+        "home_away", "type", "market", "lang", "region", "team_abbreviation", "position", "status", "play_type"
     ]
 
     # Dataframe-specific columns to convert
