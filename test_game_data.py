@@ -15,7 +15,8 @@ print("\n===== TEAM INFORMATION FROM get_game_details =====")
 for i, team in enumerate(game_details.get("teams", [])):
     print(f"\nTeam {i+1}:")
     print(f"Name: {team.get('name')}")
-    print(f"Conference: {team.get('conference')}")
+    print(f"Conference ID: {team.get('conference_id')}")
+    print(f"Conference Slug: {team.get('conference_slug')}")
     print(f"Division: {team.get('division')}")
     print(f"Linescores: {team.get('linescores')}")
 
@@ -54,7 +55,7 @@ try:
         print(teams_df.columns.tolist())
 
         print("\n===== TEAMS DATAFRAME CONTENT =====")
-        print(teams_df[["team_name", "conference", "division", "linescores"]].to_string())
+        print(teams_df[["team_name", "conference_id", "conference_slug", "division", "linescores"]].to_string())
     else:
         print("No teams_info dataframe found in result")
 finally:

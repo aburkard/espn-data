@@ -393,7 +393,10 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                         "color": team['team'].get('color', None),
                         "home_away": team.get('homeAway', None),
                         "score": team.get('score', None),
-                        "winner": team.get('winner', False)
+                        "winner": team.get('winner', False),
+                        "conference_id": team.get("conference_id", None),
+                        "conference_slug": team.get("conference_slug", None),
+                        "division": team.get("division", None),
                     }
 
                     # Add linescores if available
@@ -409,12 +412,9 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                         if isinstance(groups, dict):  # Single group object
                             # Check if this is a conference
                             if groups.get('isConference', False):
-                                # Try to get conference name, or derive it from slug if not available
-                                conf_name = groups.get('name')
-                                if not conf_name and 'slug' in groups:
-                                    # Convert slug like "atlantic-coast-conference" to "Atlantic Coast Conference"
-                                    conf_name = ' '.join(word.capitalize() for word in groups['slug'].split('-'))
-                                team_info['conference'] = conf_name
+                                # Store conference id and slug directly
+                                team_info['conference_id'] = groups.get('id')
+                                team_info['conference_slug'] = groups.get('slug')
                             # Check for division in the parent field
                             if 'parent' in groups and isinstance(groups['parent'], dict):
                                 team_info['division'] = groups['parent'].get('name')
@@ -422,12 +422,9 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                             for group in groups:
                                 if isinstance(group, dict):
                                     if group.get('isConference', False):
-                                        # Try to get conference name, or derive it from slug if not available
-                                        conf_name = group.get('name')
-                                        if not conf_name and 'slug' in group:
-                                            # Convert slug like "atlantic-coast-conference" to "Atlantic Coast Conference"
-                                            conf_name = ' '.join(word.capitalize() for word in group['slug'].split('-'))
-                                        team_info['conference'] = conf_name
+                                        # Store conference id and slug directly
+                                        team_info['conference_id'] = group.get('id')
+                                        team_info['conference_slug'] = group.get('slug')
                                     if 'parent' in group and isinstance(group['parent'], dict):
                                         team_info['division'] = group['parent'].get('name')
 
@@ -605,7 +602,8 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                     "home_away": team.get("home_away", None),
                     "score": team.get("score", None),
                     "winner": team.get("winner", False),
-                    "conference": team.get("conference", None),
+                    "conference_id": team.get("conference_id", None),
+                    "conference_slug": team.get("conference_slug", None),
                     "division": team.get("division", None),
                 }
 
