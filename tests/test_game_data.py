@@ -34,17 +34,59 @@ SAMPLE_GAME_DATA = {
                 }
             },
             "competitors": [{
-                "id": "52",
-                "homeAway": "home",
+                "id":
+                    "52",
+                "homeAway":
+                    "home",
                 "team": {
-                    "displayName": "Home Team"
-                }
+                    "displayName": "Home Team",
+                    "groups": {
+                        "id": "2",
+                        "isConference": True,
+                        "slug": "atlantic-coast-conference",
+                        "parent": {
+                            "id": "50",
+                            "name": "NCAA Division I",
+                            "slug": "ncaa-division-i"
+                        }
+                    }
+                },
+                "linescores": [{
+                    "displayValue": "17"
+                }, {
+                    "displayValue": "15"
+                }, {
+                    "displayValue": "13"
+                }, {
+                    "displayValue": "16"
+                }]
             }, {
-                "id": "99",
-                "homeAway": "away",
+                "id":
+                    "99",
+                "homeAway":
+                    "away",
                 "team": {
-                    "displayName": "Away Team"
-                }
+                    "displayName": "Away Team",
+                    "groups": {
+                        "id": "2",
+                        "isConference": True,
+                        "slug": "atlantic-coast-conference",
+                        "parent": {
+                            "id": "50",
+                            "name": "NCAA Division I",
+                            "slug": "ncaa-division-i"
+                        }
+                    }
+                },
+                "linescores": [{
+                    "displayValue": "14"
+                }, {
+                    "displayValue": "10"
+                }, {
+                    "displayValue": "22"
+                }, {
+                    "displayValue": "8"
+                }]
             }],
             "officials": [{
                 "position": {
@@ -146,3 +188,57 @@ def test_game_processing(sample_game_id, season):
 
     for col in verbose_columns:
         assert col not in team_df.columns, f"Verbose column still present: {col}"
+
+
+def test_team_conference_and_linescores():
+    """Test that team conference, division, and linescores information is correctly extracted."""
+    # Use the modified test data with conference and linescores
+    game_data = SAMPLE_GAME_DATA
+
+    # Extract game details
+    game_details = get_game_details(game_data)
+
+    # Verify teams have conference, division, and linescores data
+    for team in game_details.get("teams", []):
+        assert "conference_id" in team, "Missing conference_id in team data"
+        assert "conference_slug" in team, "Missing conference_slug in team data"
+        assert "division" in team, "Missing division in team data"
+        assert "linescores" in team, "Missing linescores in team data"
+
+        # Check specific values
+        assert team["conference_id"] == "2", "Incorrect conference_id"
+        assert team["conference_slug"] == "atlantic-coast-conference", "Incorrect conference_slug"
+        assert team["division"] == "NCAA Division I", "Incorrect division"
+        assert isinstance(team["linescores"], list), "Linescores should be a list"
+        assert len(team["linescores"]) == 4, "Should have 4 quarter scores"
+
+    # Test that these fields make it to the final dataframe
+    with patch('espn_data.processor.load_json', return_value=game_data):
+        game_id = game_data['header']['id']
+        season = game_data['header']['season']['year']
+
+        # Process the game data
+        result = process_game_data(game_id, season)
+
+        # Verify teams_info dataframe has the needed columns
+        assert "data" in result, "Missing data in result"
+        assert "teams_info" in result["data"], "Missing teams_info in data"
+
+        teams_df = result["data"]["teams_info"]
+        assert not teams_df.empty, "Teams dataframe is empty"
+
+        # Check for our new columns
+        assert "conference_id" in teams_df.columns, "Missing conference_id column"
+        assert "conference_slug" in teams_df.columns, "Missing conference_slug column"
+        assert "division" in teams_df.columns, "Missing division column"
+        assert "linescores" in teams_df.columns, "Missing linescores column"
+
+        # Verify values
+        assert teams_df["conference_id"].iloc[0] == "2", "Incorrect conference_id in dataframe"
+        assert teams_df["conference_slug"].iloc[
+            0] == "atlantic-coast-conference", "Incorrect conference_slug in dataframe"
+        assert teams_df["division"].iloc[0] == "NCAA Division I", "Incorrect division in dataframe"
+
+        # For linescores, they should be stored as a comma-separated string
+        assert isinstance(teams_df["linescores"].iloc[0], str), "Linescores should be a string in the dataframe"
+        assert "," in teams_df["linescores"].iloc[0], "Linescores should be comma-separated"
