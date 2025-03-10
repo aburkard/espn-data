@@ -267,7 +267,9 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                         game_details["broadcast"] = media
                     else:
                         game_details["broadcast"] = ""
-                    game_details["broadcast_market"] = market
+                    # Ensure market is a non-empty string
+                    if market:
+                        game_details["broadcast_market"] = market
                     break
 
         # If no national broadcast found, use the first available one
@@ -282,7 +284,8 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                     game_details["broadcast"] = ""
 
                 market = game_data['broadcasts'][0].get('market', '')
-                if isinstance(market, str):
+                # Ensure market is a non-empty string
+                if isinstance(market, str) and market:
                     game_details["broadcast_market"] = market
 
     # Check in header.competitions[0].broadcasts
@@ -305,7 +308,9 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                             game_details["broadcast"] = media
                         else:
                             game_details["broadcast"] = ""
-                        game_details["broadcast_market"] = market
+                        # Ensure market is a non-empty string
+                        if market:
+                            game_details["broadcast_market"] = market
                         break
 
             # If no national broadcast found, use the first available one
@@ -320,7 +325,8 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                         game_details["broadcast"] = ""
 
                     market = competition['broadcasts'][0].get('market', '')
-                    if isinstance(market, str):
+                    # Ensure market is a non-empty string
+                    if isinstance(market, str) and market:
                         game_details["broadcast_market"] = market
 
     # Check in gameInfo.broadcast
@@ -339,7 +345,9 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                         game_details["broadcast"] = media
                     else:
                         game_details["broadcast"] = ""
-                    game_details["broadcast_market"] = market
+                    # Ensure market is a non-empty string
+                    if market:
+                        game_details["broadcast_market"] = market
                     break
 
         # If no national broadcast found, use the first available one
@@ -355,7 +363,8 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                     game_details["broadcast"] = ""
 
                 market = game_data['gameInfo']['broadcasts'][0].get('market', '')
-                if isinstance(market, str):
+                # Ensure market is a non-empty string
+                if isinstance(market, str) and market:
                     game_details["broadcast_market"] = market
 
     # Extract conference information if available
@@ -568,10 +577,10 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                 team_info = {
                     "game_id": game_id,
                     "team_id": team.get("id", ""),
-                    "team_name": team.get("display_name", ""),
+                    "team_name": team.get("name", ""),
                     "team_abbreviation": team.get("abbreviation", ""),
                     "team_location": team.get("location", ""),
-                    "team_nickname": team.get("name", ""),
+                    "team_nickname": team.get("nickname", ""),
                     "team_color": team.get("color", ""),
                     "home_away": team.get("home_away", ""),
                     "score": team.get("score", 0),
