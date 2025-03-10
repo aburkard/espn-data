@@ -491,43 +491,28 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
             logger.debug(f"Game {game_id}: Game details extracted, building game_info")
 
             game_info = {
-                "game_id":
-                    game_id,
-                "date":
-                    game_details["date"],
-                "venue_id":
-                    game_details["venue_id"],
-                "venue":
-                    game_details["venue"],
-                "venue_location":
-                    game_details["venue_location"],
-                "venue_city":
-                    game_details["venue_city"],
-                "venue_state":
-                    game_details["venue_state"],
-                "attendance":
-                    game_details["attendance"],
-                "status": (game_details.get("status", {}).get("description", None) or game_details.get(
-                    "status", {}).get("short_detail", None) or game_details.get("status", {}).get("name", None))
-                          if isinstance(game_details.get("status"), dict) else "",
-                "neutral_site":
-                    game_details["neutral_site"],
-                "completed":
-                    game_details["completed"],
-                "broadcast":
-                    game_details["broadcast"],
-                "broadcast_market":
-                    game_details["broadcast_market"],
-                "conference":
-                    game_details["conference"],
-                "regulation_clock":
-                    game_details.get("regulation_clock", 600.0),
-                "overtime_clock":
-                    game_details.get("overtime_clock", 300.0),
-                "period_name":
-                    game_details.get("period_name", "Quarter"),
-                "num_periods":
-                    game_details.get("num_periods", 4)
+                "game_id": game_id,
+                "date": game_details["date"],
+                "venue_id": game_details["venue_id"],
+                "venue": game_details["venue"],
+                "venue_location": game_details["venue_location"],
+                "venue_city": game_details["venue_city"],
+                "venue_state": game_details["venue_state"],
+                "attendance": game_details["attendance"],
+                "status":
+                    (game_details["status"] if isinstance(game_details.get("status"), str) else
+                     (game_details.get("status", {}).get("description", None) or game_details.get("status", {}).get(
+                         "short_detail", None) or game_details.get("status", {}).get("name", None)) if isinstance(
+                             game_details.get("status"), dict) else None),
+                "neutral_site": game_details["neutral_site"],
+                "completed": game_details["completed"],
+                "broadcast": game_details["broadcast"],
+                "broadcast_market": game_details["broadcast_market"],
+                "conference": game_details["conference"],
+                "regulation_clock": game_details.get("regulation_clock", 600.0),
+                "overtime_clock": game_details.get("overtime_clock", 300.0),
+                "period_name": game_details.get("period_name", "Quarter"),
+                "num_periods": game_details.get("num_periods", 4)
             }
 
             logger.debug(f"Game {game_id}: Game info built successfully")
