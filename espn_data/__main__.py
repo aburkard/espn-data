@@ -38,7 +38,7 @@ async def main() -> None:
                         type=int,
                         nargs="+",
                         help=f"List of seasons to scrape (e.g., 2020 2021 2022). Default: 2022-{current_year}")
-    parser.add_argument("--start-year", type=int, default=2022, help="Start year for season range (inclusive)")
+    parser.add_argument("--start-year", type=int, default=2003, help="Start year for season range (inclusive)")
     parser.add_argument("--end-year", type=int, default=current_year, help="End year for season range (inclusive)")
 
     # Add performance parameters
