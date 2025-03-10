@@ -1024,6 +1024,18 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
 
                 # Save as CSV and Parquet
                 combined_df.to_csv(csv_season_dir / f"{data_type}.csv", index=False)
+
+                # Fix data type issues before saving to parquet
+                if data_type == "teams_info" and not combined_df.empty:
+                    # Convert score column to numeric, coercing errors to NaN
+                    combined_df['score'] = pd.to_numeric(combined_df['score'], errors='coerce')
+
+                if data_type == "play_by_play" and not combined_df.empty:
+                    # Convert coordinate columns to numeric, coercing errors to NaN
+                    combined_df['coordinate_x'] = pd.to_numeric(combined_df['coordinate_x'], errors='coerce')
+                    combined_df['coordinate_y'] = pd.to_numeric(combined_df['coordinate_y'], errors='coerce')
+
+                # Now save to parquet with fixed data types
                 combined_df.to_parquet(parquet_season_dir / f"{data_type}.parquet", index=False)
 
                 logger.info(f"Saved consolidated {data_type} data with {len(combined_df)} records for season {season}")

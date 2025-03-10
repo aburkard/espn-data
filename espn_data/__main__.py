@@ -55,6 +55,11 @@ async def main() -> None:
     # Add logging level option
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
+    # Add force option to override cached data
+    parser.add_argument("--force",
+                        action="store_true",
+                        help="Force re-scraping or re-processing of data, ignoring cached files")
+
     args = parser.parse_args()
 
     # Configure logging based on command-line argument
@@ -82,7 +87,7 @@ async def main() -> None:
     if args.process:
         # Only run the processor
         logger.info(f"Running data processor for {get_current_gender()} basketball")
-        process_all_data(seasons=seasons, max_workers=args.max_workers, gender=args.gender)
+        process_all_data(seasons=seasons, max_workers=args.max_workers, gender=args.gender, force=args.force)
     elif args.scrape:
         # Only run the scraper
         logger.info(f"Running data scraper for {get_current_gender()} basketball")
@@ -90,7 +95,8 @@ async def main() -> None:
                               delay=args.delay,
                               seasons=seasons,
                               team_id=args.team_id,
-                              gender=args.gender)
+                              gender=args.gender,
+                              force=args.force)
     else:
         # Run the full workflow
         logger.info(f"Running full workflow (scrape + process) for {get_current_gender()} basketball")
@@ -100,10 +106,11 @@ async def main() -> None:
                               delay=args.delay,
                               seasons=seasons,
                               team_id=args.team_id,
-                              gender=args.gender)
+                              gender=args.gender,
+                              force=args.force)
 
         # Step 2: Process data
-        process_all_data(seasons=seasons, max_workers=args.max_workers, gender=args.gender)
+        process_all_data(seasons=seasons, max_workers=args.max_workers, gender=args.gender, force=args.force)
 
     logger.info("Workflow completed successfully")
 
