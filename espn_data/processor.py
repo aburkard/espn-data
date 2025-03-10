@@ -20,20 +20,13 @@ from espn_data.scraper import get_game_data, DEFAULT_SEASONS
 
 logger = logging.getLogger("espn_data")
 
-# Ensure only the base directories exist, season dirs will be created as needed
-# os.makedirs(PROCESSED_DIR, exist_ok=True)
-# os.makedirs(CSV_DIR, exist_ok=True)
-# os.makedirs(PARQUET_DIR, exist_ok=True)
-# os.makedirs(CSV_GAMES_DIR, exist_ok=True)
-# os.makedirs(PARQUET_GAMES_DIR, exist_ok=True)
-
-# Instead of
-# BASE_DIR = Path(__file__).parent
-# DATA_DIR = BASE_DIR / "data"
-
-# Change to
+# Create base directories
 BASE_DIR = Path(__file__).parent.parent  # Go up one level to workspace root
 DATA_DIR = BASE_DIR / "data"
+
+# Ensure base directories exist
+os.makedirs(DATA_DIR, exist_ok=True)
+# The rest of the directories will be created as needed in the specific functions
 
 
 def process_teams_data(force: bool = False) -> pd.DataFrame:
@@ -1140,36 +1133,61 @@ def process_season_data(season: int, max_workers: int = 4, force: bool = False) 
     Process all data for a specific season.
     
     Args:
-        season: The season year to process
-        max_workers: Maximum number of concurrent processes
+        season: The season to process
+        max_workers: Maximum number of parallel worker processes
         force: If True, force reprocessing even if processed files exist
         
     Returns:
-        Dictionary with processing summary
+        Dictionary with processing statistics
     """
     logger.info(f"Processing data for season {season}")
 
-    # Process schedules for this season
+    # Create the directories if they don't exist
+    try:
+        os.makedirs(get_csv_season_dir(season), exist_ok=True)
+        os.makedirs(get_parquet_season_dir(season), exist_ok=True)
+    except Exception as e:
+        logger.error(f"Error creating directories for season {season}: {e}")
+        return {"season": season, "total_games": 0, "success_games": 0, "error_games": 0, "error": str(e)}
+
+    # Process schedules for the season
     schedules_df = process_schedules(season, force=force)
 
-    # Process games for this season
-    game_summary = process_all_games(season, max_workers=max_workers, force=force)
+    if schedules_df.empty:
+        logger.warning(f"No schedule data found for season {season}")
+        return {
+            "season": season,
+            "total_games": 0,
+            "success_games": 0,
+            "error_games": 0,
+            "error": "No schedule data found"
+        }
 
-    # Create summary statistics
-    summary = {
-        "schedules_count":
-            len(schedules_df),
-        "games_count":
-            len(game_summary["game_summary"]),
-        "processed_games_count": (game_summary["game_summary"]["processed"].sum()
-                                  if "processed" in game_summary["game_summary"].columns else 0)
-    }
+    # Process games data
+    game_id_season_pairs = sorted([(game_id, season) for game_id in schedules_df['game_id'].unique()])
+    total_games = len(game_id_season_pairs)
 
-    # Log summary
-    logger.info(f"Season {season}: {summary['schedules_count']} schedule entries, "
-                f"{summary['games_count']} games, {summary['processed_games_count']} processed games")
+    logger.info(f"Processing {total_games} games for season {season}")
 
-    return summary
+    success_count = 0
+    error_count = 0
+
+    try:
+        processed_data = process_all_games(season, max_workers=max_workers, force=force)
+
+        # Count successful and failed games
+        for dataset_name, df in processed_data.items():
+            if not df.empty:
+                if dataset_name == 'game':
+                    success_count = len(df)
+
+        error_count = total_games - success_count
+    except Exception as e:
+        logger.error(f"Error processing games for season {season}: {e}")
+        error_count = total_games
+
+    # Return stats about the processing
+    return {"season": season, "total_games": total_games, "success_games": success_count, "error_games": error_count}
 
 
 def process_all_data(seasons: Optional[List[int]] = None,
@@ -1177,32 +1195,66 @@ def process_all_data(seasons: Optional[List[int]] = None,
                      gender: str = None,
                      force: bool = False) -> None:
     """
-    Process all ESPN data for specified seasons.
-    
+    Process all data for the specified seasons.
+
     Args:
-        seasons: List of seasons to process (default: DEFAULT_SEASONS)
-        max_workers: Maximum concurrent processes for parallel processing
+        seasons: List of seasons to process (if None, all available seasons are processed)
+        max_workers: Maximum number of parallel worker processes
         gender: Either "mens" or "womens" (if None, uses current setting)
         force: If True, force reprocessing even if processed files exist
     """
     if gender:
         set_gender(gender)
 
-    logger.info(f"Starting data processing for {get_current_gender()} basketball")
+    logger.info(f"Processing all data for {get_current_gender()} basketball")
 
+    # Process teams data first
+    teams_df = process_teams_data(force=force)
+    logger.info(f"Processed {len(teams_df)} teams")
+
+    # Determine which seasons to process
     if seasons is None:
         seasons = DEFAULT_SEASONS
 
-    logger.info(f"Processing data for seasons {seasons}")
+    # Create a summary of processing results
+    summary = {
+        "total_seasons": len(seasons),
+        "processed_seasons": 0,
+        "total_games": 0,
+        "success_games": 0,
+        "error_games": 0
+    }
 
-    # First, process teams data
-    process_teams_data(force)
+    # Process each season
+    for season in tqdm(seasons, desc="Processing seasons"):
+        logger.info(f"Processing season {season}")
+        try:
+            season_data = process_season_data(season, max_workers=max_workers, force=force)
 
-    # Then process each season
-    for season in seasons:
-        process_season_data(season, max_workers=max_workers, force=force)
+            # Update summary with this season's data
+            summary["processed_seasons"] += 1
+            summary["total_games"] += season_data.get("total_games", 0)
+            summary["success_games"] += season_data.get("success_games", 0)
+            summary["error_games"] += season_data.get("error_games", 0)
 
-    logger.info(f"Data saved in: {get_processed_dir()}")
+            logger.info(f"Completed processing season {season}: "
+                        f"{season_data.get('success_games', 0)} games processed, "
+                        f"{season_data.get('error_games', 0)} games with errors")
+        except Exception as e:
+            logger.error(f"Error processing season {season}: {e}")
+
+    # Log summary of all processing
+    logger.info(f"Data processing complete. Summary:")
+    logger.info(f"  Seasons processed: {summary['processed_seasons']}/{summary['total_seasons']}")
+    logger.info(f"  Total games: {summary['total_games']}")
+    logger.info(f"  Successfully processed games: {summary['success_games']}")
+    logger.info(f"  Games with errors: {summary['error_games']}")
+
+    if summary['error_games'] > 0:
+        logger.warning(f"There were {summary['error_games']} games with processing errors. "
+                       f"Check the log for details.")
+    else:
+        logger.info("All games processed successfully!")
 
 
 def main() -> None:

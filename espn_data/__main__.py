@@ -52,7 +52,18 @@ async def main() -> None:
     # Add test mode for single team
     parser.add_argument("--team-id", type=str, help="Specific team ID to scrape (for testing)")
 
+    # Add logging level option
+    parser.add_argument("--debug", action="store_true", help="Enable debug logging")
+
     args = parser.parse_args()
+
+    # Configure logging based on command-line argument
+    log_level = logging.DEBUG if args.debug else logging.INFO
+    logging.basicConfig(level=log_level,
+                        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+                        handlers=[logging.FileHandler("espn_scraper.log"),
+                                  logging.StreamHandler()])
+    logger.info(f"Logging level set to {'DEBUG' if args.debug else 'INFO'}")
 
     # Set gender
     set_gender(args.gender)
@@ -98,12 +109,5 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
-    # Configure logging - set level to DEBUG to see more detailed information
-    logging.basicConfig(
-        level=logging.DEBUG,  # Change from INFO to DEBUG
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-        handlers=[logging.FileHandler("espn_scraper.log"),
-                  logging.StreamHandler()])
-
     # Run the command-line interface
     asyncio.run(main())

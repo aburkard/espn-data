@@ -6,3 +6,4 @@ data/
 *.jsonl.gz
 *.jsonl.gz.part
 *.jsonl.gz.part.tmp
+*.log

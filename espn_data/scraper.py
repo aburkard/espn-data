@@ -36,9 +36,6 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
         
     Returns:
         List of team data dictionaries
-        
-    Note:
-        This function does NOT save the data to disk - callers should handle saving if needed.
     """
     if gender:
         set_gender(gender)
@@ -46,9 +43,13 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
     teams_file = get_teams_file()
     if not force and teams_file.exists():
         logger.info("Using cached teams data")
-        teams = load_json(teams_file)
-        if teams:
-            return teams[:max_teams] if max_teams else teams
+        try:
+            teams = load_json(teams_file)
+            if teams:
+                return teams[:max_teams] if max_teams else teams
+        except (json.JSONDecodeError, IOError) as e:
+            logger.error(f"Error loading cached teams data: {e}")
+            # Continue to fetch data if cached file is corrupted
 
     logger.info("Fetching all teams data")
 
@@ -64,7 +65,14 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
             params = {'limit': limit, 'page': page}
 
             logger.info(f"Fetching teams - page {page}, limit {limit}")
-            data = make_request(get_teams_url(), params=params)
+            try:
+                data = make_request(get_teams_url(), params=params)
+            except Exception as e:
+                logger.error(f"Error fetching teams data on page {page}: {e}")
+                # Wait and retry or break depending on your error handling strategy
+                if not all_teams:  # If we haven't got any teams yet, this is a fatal error
+                    raise
+                break  # If we already have some teams, we can return what we have
 
             if not data or "sports" not in data:
                 logger.error(f"Failed to get teams data on page {page}")
@@ -87,8 +95,9 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
             # Add teams from current page to the overall list
             all_teams.extend(teams)
 
-            # Check if we got fewer teams than the limit, which means we've reached the end
-            has_more = len(teams) >= limit
+            # Properly check for more pages - only if we received exactly the limit,
+            # there might be more
+            has_more = len(teams) == limit
             page += 1
 
         logger.info(f"Found {len(all_teams)} teams across {page-1} pages")
@@ -97,14 +106,13 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
         if max_teams:
             all_teams = all_teams[:max_teams]
 
-        # Remove the save operation - let caller handle saving
-        # os.makedirs(teams_file.parent, exist_ok=True)
-        # save_json(teams, teams_file)
+        # Save the data to disk
+        os.makedirs(teams_file.parent, exist_ok=True)
+        save_json(all_teams, teams_file)
 
         return all_teams
-
     except Exception as e:
-        logger.error(f"Error fetching teams: {e}")
+        logger.error(f"Unexpected error fetching teams data: {e}")
         return []
 
 

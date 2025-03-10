@@ -146,6 +146,24 @@ For each game, the following data types are extracted:
 - Parquet files are more efficient for analysis than CSV files
 - For large datasets, consider using `--max-workers` to adjust parallel processing
 
+## API Rate Limiting
+
+The ESPN API does not officially document its rate limits, but the scraper is designed to respect reasonable limits through the following mechanisms:
+
+- **Adjustable Concurrency**: Use `--concurrency` to control how many simultaneous requests are made
+- **Request Delays**: Use `--delay` to add a pause between requests (in seconds)
+- **Automatic Backoff**: The scraper implements exponential backoff on failures
+- **Data Caching**: Once data is scraped, it's cached locally to avoid unnecessary requests
+
+If you encounter rate limiting or connection reset errors, try:
+
+```bash
+# More conservative settings to avoid rate limiting
+python -m espn_data --concurrency 3 --delay 1.0
+```
+
+For large-scale scraping, consider running the scraper over multiple days, focusing on different seasons each day.
+
 ## Testing
 
 The project includes a comprehensive test suite to verify data scraping and processing functionality. Tests are written using pytest and can be run using the provided `run_tests.py` script.

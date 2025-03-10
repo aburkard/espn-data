@@ -1,33 +1,104 @@
 import os
+import json
 import pytest
 from pathlib import Path
 import pandas as pd
+from unittest.mock import patch, MagicMock
 
 from espn_data.utils import load_json
 from espn_data.processor import get_game_details, process_game_data
+from espn_data.utils import get_raw_dir, get_season_dir, get_games_dir, set_gender
+
+# Sample test game ID and season
+TEST_GAME_ID = "401480248"
+TEST_SEASON = 2023
+TEST_GENDER = "womens"
+
+# Test data sample for mocking
+SAMPLE_GAME_DATA = {
+    "header": {
+        "id":
+            TEST_GAME_ID,
+        "season": {
+            "year": TEST_SEASON
+        },
+        "competitions": [{
+            "id": TEST_GAME_ID,
+            "date": "2023-03-26T21:00Z",
+            "attendance": 10267,
+            "venue": {
+                "fullName": "Test Arena",
+                "address": {
+                    "city": "Test City",
+                    "state": "TS"
+                }
+            },
+            "competitors": [{
+                "id": "52",
+                "homeAway": "home",
+                "team": {
+                    "displayName": "Home Team"
+                }
+            }, {
+                "id": "99",
+                "homeAway": "away",
+                "team": {
+                    "displayName": "Away Team"
+                }
+            }],
+            "officials": [{
+                "position": {
+                    "name": "Referee"
+                },
+                "names": [{
+                    "full": "Test Official"
+                }]
+            }]
+        }]
+    }
+}
 
 
-def test_game_details(sample_game_id, season):
-    """Test the get_game_details function with a sample game file."""
-    # Path to the game data file
-    game_file = Path(f"espn_data/data/raw/{season}/games/{sample_game_id}.json")
+@pytest.fixture
+def ensure_test_data():
+    """Create test data if it doesn't exist"""
+    set_gender(TEST_GENDER)
+    game_file = get_games_dir(TEST_SEASON) / f"{TEST_GAME_ID}.json"
 
+    # Create directories if they don't exist
+    os.makedirs(game_file.parent, exist_ok=True)
+
+    # Create sample test data if file doesn't exist
     if not game_file.exists():
-        pytest.skip(f"Game file not found: {game_file}")
+        with open(game_file, 'w') as f:
+            json.dump(SAMPLE_GAME_DATA, f)
 
-    # Load the game data
-    game_data = load_json(game_file)
-    assert game_data is not None, "Failed to load game data"
+    return game_file
 
-    # Process the data
-    details = get_game_details(game_data)
-    assert details is not None, "Failed to get game details"
 
-    # Check for important fields
-    assert "game_id" in details, "Missing game_id in details"
-    assert "home_team" in details, "Missing home_team in details"
-    assert "away_team" in details, "Missing away_team in details"
-    assert "date" in details, "Missing date in details"
+def test_game_details(ensure_test_data):
+    """Test extracting game details"""
+    set_gender(TEST_GENDER)
+    game_file = ensure_test_data
+
+    with open(game_file) as f:
+        game_data = json.load(f)
+
+    # Extract game details
+    game_details = get_game_details(game_data)
+
+    # Check basic game information
+    assert game_details["game_id"] == TEST_GAME_ID
+    assert game_details["season"] == TEST_SEASON
+    assert "date" in game_details
+
+    # Check venue information if available
+    if "venue_name" in game_details:
+        assert game_details["venue_name"] == "Test Arena"
+
+    # Check team information
+    assert "home_team_id" in game_details
+    assert "away_team_id" in game_details
 
 
 def test_game_processing(sample_game_id, season):
