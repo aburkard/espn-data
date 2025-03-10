@@ -567,7 +567,51 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                                     stat_values = athlete.get('stats', [])
                                     for i, key in enumerate(stat_keys):
                                         if i < len(stat_values):
-                                            player_record[key] = stat_values[i]
+                                            # Use labels instead of keys for column names
+                                            if i < len(stat_labels):
+                                                column_name = stat_labels[i]
+                                                player_record[column_name] = stat_values[i]
+                                            else:
+                                                player_record[key] = stat_values[i]
+
+                                    # Process combined stats like FG, 3PT, FT
+                                    for column_name in ['FG', '3PT', 'FT']:
+                                        if column_name in player_record and isinstance(
+                                                player_record[column_name], str) and '-' in player_record[column_name]:
+                                            try:
+                                                made, attempted = player_record[column_name].split('-')
+                                                player_record[f"{column_name}_MADE"] = int(made)
+                                                player_record[f"{column_name}_ATT"] = int(attempted)
+
+                                                # Calculate percentage
+                                                try:
+                                                    pct = round(
+                                                        int(made) / int(attempted) * 100 if int(attempted) > 0 else 0,
+                                                        1)
+                                                    player_record[f"{column_name}_PCT"] = pct
+                                                except (ValueError, ZeroDivisionError):
+                                                    player_record[f"{column_name}_PCT"] = 0
+                                            except (ValueError, TypeError):
+                                                pass
+
+                                    # Standardize column names to match team stats
+                                    rename_map = {
+                                        'minutes': 'MIN',
+                                        'offensiveRebounds': 'OREB',
+                                        'defensiveRebounds': 'DREB',
+                                        'rebounds': 'REB',
+                                        'assists': 'AST',
+                                        'steals': 'STL',
+                                        'blocks': 'BLK',
+                                        'turnovers': 'TO',
+                                        'fouls': 'PF',
+                                        'points': 'PTS'
+                                    }
+
+                                    # Apply the renaming to standardize to team stat format
+                                    for old_name, new_name in rename_map.items():
+                                        if old_name in player_record:
+                                            player_record[new_name] = player_record.pop(old_name)
 
                                     player_stats.append(player_record)
                             else:
