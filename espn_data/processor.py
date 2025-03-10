@@ -7,9 +7,9 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 from typing import Dict, List, Any, Optional, Union
-from concurrent.futures import ProcessPoolExecutor
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from tqdm import tqdm
-from datetime import datetime
+from datetime import datetime, timezone
 import argparse
 
 from espn_data.utils import (load_json, save_json, get_teams_file, get_schedules_dir, get_games_dir, get_processed_dir,
@@ -151,276 +151,282 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
 
     logger.debug(f"Game {game_id}: Extracting game details")
 
-    details = {
+    # Initialize the game_details dictionary
+    game_details = {
         "game_id": game_id,
-        "date": None,
-        "season": None,
-        "venue_id": None,
-        "venue_name": None,
-        "venue_location": None,
-        "venue_city": None,
-        "venue_state": None,
+        "date": "",
+        "venue_id": "",
+        "venue": "",
+        "venue_name": "",
+        "venue_location": "",
+        "venue_city": "",
+        "venue_state": "",
         "attendance": None,
+        "status": "",
+        "state": "",
         "neutral_site": False,
-        "teams": [],
-        "officials": [],  # Added officials list
-        "format": None,  # Added format information
-        "status": {},  # Changed to empty dict from None
-        "broadcasts": [],  # Added broadcasts field
-        "groups": {},  # Changed to empty dict from None
-        "boxscore_available": False,  # Added flag for boxscore availability
-        "boxscore_source": None,  # Added source of boxscore data
-        "play_by_play_source": None,  # Added source of play-by-play data
+        "format": None,
+        "completed": False,
+        "broadcast": "",
+        "broadcast_market": "",
+        "conference": "",
+        "teams": []
     }
 
-    if not game_data:
-        logger.warning(f"Game {game_id}: Empty game_data provided")
-        return details
+    # Extract game date
+    if 'date' in game_data:
+        game_details["date"] = game_data['date']
+    elif 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
+            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
+        if 'date' in game_data['header']['competitions'][0]:
+            game_details["date"] = game_data['header']['competitions'][0]['date']
 
-    # Log top-level keys for debugging
-    top_keys = list(game_data.keys()) if isinstance(game_data, dict) else "Not a dictionary"
-    logger.debug(f"Game {game_id}: Game data top-level keys: {top_keys}")
+    # Extract venue information
+    venue_data = None
+    if 'gameInfo' in game_data and 'venue' in game_data['gameInfo']:
+        venue_data = game_data['gameInfo']['venue']
+    elif 'venue' in game_data:
+        venue_data = game_data['venue']
+    elif 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
+            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
+        venue_data = game_data['header']['competitions'][0].get('venue')
 
-    # Extract date and team information - first try from header for backward compatibility
-    header = game_data.get('header')
-    if header is not None:
-        # Extract season information if available
-        if 'season' in header and isinstance(header['season'], dict):
-            details["season"] = header['season'].get('year')
-            logger.debug(f"Game {game_id}: Season extracted: {details['season']}")
+    if venue_data and isinstance(venue_data, dict):
+        game_details["venue_id"] = venue_data.get('id', '')
+        game_details["venue"] = venue_data.get('fullName', '')
+        game_details["venue_name"] = venue_data.get('fullName', '')
 
-        competitions = header.get('competitions', [])
-        if competitions and isinstance(competitions, list) and len(competitions) > 0:
-            competition = competitions[0]
-            if isinstance(competition, dict):
-                # Extract date
-                details["date"] = competition.get('date')
-                logger.debug(f"Game {game_id}: Date extracted: {details['date']}")
+        address = venue_data.get('address', {})
+        city = address.get('city', '')
+        state = address.get('state', '')
 
-                # Extract neutral site info
-                details["neutral_site"] = competition.get('neutralSite', False)
+        game_details["venue_location"] = f"{city}, {state}" if city and state else city or state
+        game_details["venue_city"] = city
+        game_details["venue_state"] = state
 
-                # Extract boxscore availability information
-                details["boxscore_available"] = competition.get('boxscoreAvailable', False)
-                details["boxscore_source"] = competition.get('boxscoreSource')
-                details["play_by_play_source"] = competition.get('playByPlaySource')
-                logger.debug(f"Game {game_id}: Boxscore available: {details['boxscore_available']}, "
-                             f"Source: {details['boxscore_source']}, PBP Source: {details['play_by_play_source']}")
+    # Extract attendance information
+    if 'gameInfo' in game_data and 'attendance' in game_data['gameInfo']:
+        game_details["attendance"] = game_data['gameInfo']['attendance']
+    elif 'attendance' in game_data:
+        game_details["attendance"] = game_data['attendance']
+    elif 'boxscore' in game_data and 'attendance' in game_data['boxscore']:
+        game_details["attendance"] = game_data['boxscore']['attendance']
+    elif 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
+            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
+        game_details["attendance"] = game_data['header']['competitions'][0].get('attendance')
 
-                # Extract team information from competitions
-                competitors = competition.get('competitors', [])
-                if competitors and isinstance(competitors, list):
-                    logger.debug(f"Game {game_id}: Found {len(competitors)} competitors")
-                    for competitor in competitors:
-                        if not isinstance(competitor, dict):
-                            continue
+    # Extract game status information
+    status_type = None
+    if 'header' in game_data and 'competitions' in game_data['header']:
+        competitions = game_data['header']['competitions']
+        if competitions and isinstance(competitions, list) and 'status' in competitions[0]:
+            status_type = competitions[0]['status'].get('type', {})
+    elif 'status' in game_data:
+        status_type = game_data['status'].get('type', {})
 
-                        team = competitor.get('team', {})
-                        if not team or not isinstance(team, dict):
-                            continue
+    if status_type and isinstance(status_type, dict):
+        game_details["status"] = status_type.get('name', '')
+        game_details["state"] = status_type.get('state', '')
+        game_details["completed"] = status_type.get('completed', False)
+    else:
+        game_details["status"] = ''
+        game_details["state"] = ''
+        game_details["completed"] = False
 
-                        # Extract linescores (per-quarter or per-half scoring)
-                        linescores = []
-                        competitor_linescores = competitor.get('linescores', [])
-                        if competitor_linescores and isinstance(competitor_linescores, list):
-                            for linescore in competitor_linescores:
-                                if isinstance(linescore, dict):
-                                    linescores.append(linescore.get('displayValue', ''))
+    # Extract neutral site information
+    if 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
+            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
+        competition = game_data['header']['competitions'][0]
+        game_details["neutral_site"] = competition.get('neutralSite', False)
 
-                        # Extract team division/conference information
-                        team_groups = team.get('groups', {})
-                        division_info = {}
-                        conference_info = {}
+    # Extract game format information
+    if 'format' in game_data:
+        game_details["format"] = game_data['format']
+    elif 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
+            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
+        competition = game_data['header']['competitions'][0]
+        if 'format' in competition:
+            game_details["format"] = competition['format']
 
-                        if team_groups and isinstance(team_groups, dict):
-                            # Get conference info
-                            conference_info = {
-                                "id": team_groups.get('id'),
-                                "name": team_groups.get('name', ''),
-                                "slug": team_groups.get('slug', '')
-                            }
+    # Extract broadcast information
+    broadcasts_found = False
 
-                            # Get division info if available
-                            parent = team_groups.get('parent', {})
-                            if parent and isinstance(parent, dict):
-                                division_info = {
-                                    "id": parent.get('id'),
-                                    "name": parent.get('name', ''),
-                                    "slug": parent.get('slug', '')
-                                }
+    # First check in the direct broadcasts field
+    if 'broadcasts' in game_data and isinstance(game_data['broadcasts'], list) and len(game_data['broadcasts']) > 0:
+        broadcasts_found = True
+        for broadcast in game_data['broadcasts']:
+            if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
+                # Ensure market is a string before calling lower()
+                market = broadcast.get('market', '')
+                if isinstance(market, str) and market.lower() == 'national':
+                    # Make sure media is a dictionary
+                    media = broadcast.get('media', {})
+                    if isinstance(media, dict):
+                        game_details["broadcast"] = media.get('shortName', '')
+                    elif isinstance(media, str):
+                        game_details["broadcast"] = media
+                    else:
+                        game_details["broadcast"] = ""
+                    game_details["broadcast_market"] = market
+                    break
 
-                        team_info = {
-                            "id": team.get('id', ''),
-                            "display_name": team.get('displayName', ''),
-                            "abbreviation": team.get('abbreviation', ''),
-                            "location": team.get('location', ''),
-                            "name": team.get('name', ''),
-                            "color": team.get('color', ''),
-                            "home_away": competitor.get('homeAway', ''),
-                            "winner": competitor.get('winner', False),
-                            "score": competitor.get('score', 0),
-                            "linescores": linescores,
-                            "division": division_info,
-                            "conference": conference_info,
-                            "record": []
-                        }
+        # If no national broadcast found, use the first available one
+        if not game_details["broadcast"] and len(game_data['broadcasts']) > 0:
+            if isinstance(game_data['broadcasts'][0], dict) and 'media' in game_data['broadcasts'][0]:
+                media = game_data['broadcasts'][0].get('media', {})
+                if isinstance(media, dict):
+                    game_details["broadcast"] = media.get('shortName', '')
+                elif isinstance(media, str):
+                    game_details["broadcast"] = media
+                else:
+                    game_details["broadcast"] = ""
 
-                        # Extract team record information
-                        records = competitor.get('record', [])
-                        if records and isinstance(records, list):
-                            for record in records:
-                                if isinstance(record, dict):
-                                    team_info["record"].append({
-                                        "type": record.get('type', ''),
-                                        "summary": record.get('summary', ''),
-                                        "display_value": record.get('displayValue', '')
-                                    })
+                market = game_data['broadcasts'][0].get('market', '')
+                if isinstance(market, str):
+                    game_details["broadcast_market"] = market
 
-                        details["teams"].append(team_info)
+    # Check in header.competitions[0].broadcasts
+    if not broadcasts_found and 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
+            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
+        competition = game_data['header']['competitions'][0]
+        if 'broadcasts' in competition and isinstance(competition['broadcasts'], list) and len(
+                competition['broadcasts']) > 0:
+            broadcasts_found = True
+            for broadcast in competition['broadcasts']:
+                if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
+                    # Ensure market is a string before calling lower()
+                    market = broadcast.get('market', '')
+                    if isinstance(market, str) and market.lower() == 'national':
+                        # Make sure media is a dictionary or string
+                        media = broadcast.get('media', {})
+                        if isinstance(media, dict):
+                            game_details["broadcast"] = media.get('shortName', '')
+                        elif isinstance(media, str):
+                            game_details["broadcast"] = media
+                        else:
+                            game_details["broadcast"] = ""
+                        game_details["broadcast_market"] = market
+                        break
 
-                    logger.debug(f"Game {game_id}: Extracted {len(details['teams'])} teams")
+            # If no national broadcast found, use the first available one
+            if not game_details["broadcast"] and len(competition['broadcasts']) > 0:
+                if isinstance(competition['broadcasts'][0], dict) and 'media' in competition['broadcasts'][0]:
+                    media = competition['broadcasts'][0].get('media', {})
+                    if isinstance(media, dict):
+                        game_details["broadcast"] = media.get('shortName', '')
+                    elif isinstance(media, str):
+                        game_details["broadcast"] = media
+                    else:
+                        game_details["broadcast"] = ""
 
-                # Extract status information
-                status = competition.get('status', {})
-                if status and isinstance(status, dict):
-                    status_type = status.get('type', {})
-                    if status_type and isinstance(status_type, dict):
-                        details["status"] = {
-                            "id": status_type.get('id', ''),
-                            "name": status_type.get('name', ''),
-                            "state": status_type.get('state', ''),
-                            "completed": status_type.get('completed', False),
-                            "description": status_type.get('description', ''),
-                            "detail": status_type.get('detail', ''),
-                            "short_detail": status_type.get('shortDetail', '')
-                        }
-                        logger.debug(f"Game {game_id}: Status extracted, completed={details['status']['completed']}")
+                    market = competition['broadcasts'][0].get('market', '')
+                    if isinstance(market, str):
+                        game_details["broadcast_market"] = market
 
-                # Extract broadcasts information
-                broadcasts = competition.get('broadcasts', [])
-                if broadcasts and isinstance(broadcasts, list):
-                    for broadcast in broadcasts:
-                        if not isinstance(broadcast, dict):
-                            continue
+    # Check in gameInfo.broadcast
+    if not broadcasts_found and 'gameInfo' in game_data and 'broadcasts' in game_data['gameInfo'] and isinstance(
+            game_data['gameInfo']['broadcasts'], list) and len(game_data['gameInfo']['broadcasts']) > 0:
+        for broadcast in game_data['gameInfo']['broadcasts']:
+            if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
+                # Ensure market is a string before calling lower()
+                market = broadcast.get('market', '')
+                if isinstance(market, str) and market.lower() == 'national':
+                    # Make sure media is a dictionary or string
+                    media = broadcast.get('media', {})
+                    if isinstance(media, dict):
+                        game_details["broadcast"] = media.get('shortName', '')
+                    elif isinstance(media, str):
+                        game_details["broadcast"] = media
+                    else:
+                        game_details["broadcast"] = ""
+                    game_details["broadcast_market"] = market
+                    break
 
-                        broadcast_type = broadcast.get('type', {})
-                        broadcast_market = broadcast.get('market', {})
-                        broadcast_media = broadcast.get('media', {})
+        # If no national broadcast found, use the first available one
+        if not game_details["broadcast"] and len(game_data['gameInfo']['broadcasts']) > 0:
+            if isinstance(game_data['gameInfo']['broadcasts'][0],
+                          dict) and 'media' in game_data['gameInfo']['broadcasts'][0]:
+                media = game_data['gameInfo']['broadcasts'][0].get('media', {})
+                if isinstance(media, dict):
+                    game_details["broadcast"] = media.get('shortName', '')
+                elif isinstance(media, str):
+                    game_details["broadcast"] = media
+                else:
+                    game_details["broadcast"] = ""
 
-                        broadcast_info = {
-                            "type": broadcast_type.get('shortName', '') if isinstance(broadcast_type, dict) else '',
-                            "market": broadcast_market.get('type', '') if isinstance(broadcast_market, dict) else '',
-                            "media": broadcast_media.get('shortName', '') if isinstance(broadcast_media, dict) else '',
-                            "lang": broadcast.get('lang', ''),
-                            "region": broadcast.get('region', '')
-                        }
-                        details["broadcasts"].append(broadcast_info)
+                market = game_data['gameInfo']['broadcasts'][0].get('market', '')
+                if isinstance(market, str):
+                    game_details["broadcast_market"] = market
 
-                    logger.debug(f"Game {game_id}: Extracted {len(details['broadcasts'])} broadcasts")
+    # Extract conference information if available
+    if 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
+            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
+        competition = game_data['header']['competitions'][0]
+        if 'conferenceCompetition' in competition:
+            game_details["conference"] = competition['conferenceCompetition']
 
-                # Extract groups (conference) information
-                groups = competition.get('groups', {})
-                if groups and isinstance(groups, dict):
-                    details["groups"] = {
-                        "id": groups.get('id', ''),
-                        "name": groups.get('name', ''),
-                        "abbreviation": groups.get('abbreviation', ''),
-                        "short_name": groups.get('shortName', ''),
-                        "midsize_name": groups.get('midsizeName', '')
-                    }
-                    logger.debug(f"Game {game_id}: Groups info extracted, name={details['groups']['name']}")
-
-    # Try to enhance team data with boxscore information if available
-    boxscore = game_data.get('boxscore', {})
-    if boxscore and isinstance(boxscore, dict):
-        boxscore_teams = boxscore.get('teams', [])
-        if boxscore_teams and isinstance(boxscore_teams, list):
-            # If we have no teams from header, create them from boxscore
-            if not details["teams"]:
-                for box_team in boxscore_teams:
-                    if not isinstance(box_team, dict):
-                        continue
-
-                    team = box_team.get('team', {})
-                    if not team or not isinstance(team, dict):
-                        continue
-
+    # Extract team information
+    if 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
+            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
+        competition = game_data['header']['competitions'][0]
+        if 'competitors' in competition and isinstance(competition['competitors'], list):
+            for team in competition['competitors']:
+                if isinstance(team, dict) and 'team' in team and isinstance(team['team'], dict):
                     team_info = {
-                        "id": team.get('id', ''),
-                        "display_name": team.get('displayName', ''),
-                        "abbreviation": team.get('abbreviation', ''),
-                        "location": team.get('location', ''),
-                        "name": team.get('name', ''),
-                        "color": team.get('color', ''),
-                        "home_away": box_team.get('homeAway', ''),
-                        "winner": False,  # Can't determine from boxscore alone
-                        "score": 0,  # Will need to calculate from statistics
-                        "linescores": [],  # Empty for boxscore data
-                        "division": {},  # Empty for boxscore data
-                        "conference": {},  # Empty for boxscore data
-                        "record": []  # Empty for boxscore data
+                        "id": team['team'].get('id', ''),
+                        "name": team['team'].get('displayName', ''),
+                        "abbreviation": team['team'].get('abbreviation', ''),
+                        "location": team['team'].get('location', ''),
+                        "nickname": team['team'].get('name', ''),
+                        "color": team['team'].get('color', ''),
+                        "home_away": team.get('homeAway', ''),
+                        "score": team.get('score', ''),
+                        "winner": team.get('winner', False)
                     }
-                    details["teams"].append(team_info)
+                    game_details["teams"].append(team_info)
 
-                logger.debug(f"Game {game_id}: Created {len(details['teams'])} teams from boxscore")
+    # Create team lookup map for play-by-play processing
+    team_lookup = {}
+    for team in game_details["teams"]:
+        team_lookup[team["id"]] = {"name": team["name"], "abbreviation": team["abbreviation"]}
 
-            # Otherwise, enhance existing teams with additional boxscore data
-            else:
-                # This would be a place to add more detailed team statistics if needed
-                pass
+    # Extract play_by_play data and fill in empty team names
+    if 'plays' in game_data and isinstance(game_data['plays'], list):
+        # Process play-by-play data to fill in empty team names
+        for play in game_data['plays']:
+            if isinstance(play, dict) and 'team' in play:
+                # Check if team is a dictionary
+                if isinstance(play['team'], dict):
+                    team_id = play['team'].get('id', '')
+                    if team_id and not play['team'].get('name') and team_id in team_lookup:
+                        # Fill empty team name from our lookup
+                        play['team']['name'] = team_lookup[team_id]['name']
+                # If team is a string, we might need to handle it differently
+                # For now, we'll just log it
+                elif isinstance(play['team'], str):
+                    logger.debug(f"Game {game_id}: Found play with team as string: {play['team']}")
 
-    # Extract venue information from gameInfo
-    game_info = game_data.get('gameInfo', {})
-    if game_info and isinstance(game_info, dict):
-        venue = game_info.get('venue', {})
-        if venue and isinstance(venue, dict):
-            details["venue_id"] = venue.get('id')
-            details["venue_name"] = venue.get('fullName')
-            logger.debug(f"Game {game_id}: Venue extracted: {details['venue_name']}")
+            # Try to fill in player names from athlete info if available
+            for player_num in [1, 2]:
+                player_key = f'athlete{player_num}'
+                if player_key in play and isinstance(play[player_key], dict):
+                    player_id = play[player_key].get('id', '')
+                    if player_id and not play[player_key].get('displayName'):
+                        # Look for this player in raw data
+                        if 'boxscore' in game_data and 'players' in game_data['boxscore']:
+                            for team_players in game_data['boxscore']['players']:
+                                if 'statistics' in team_players and isinstance(team_players['statistics'], list):
+                                    for stat_group in team_players['statistics']:
+                                        if 'athletes' in stat_group and isinstance(stat_group['athletes'], list):
+                                            for player in stat_group['athletes']:
+                                                if 'athlete' in player and isinstance(
+                                                        player['athlete'],
+                                                        dict) and player['athlete'].get('id') == player_id:
+                                                    play[player_key]['displayName'] = player['athlete'].get(
+                                                        'displayName', '')
+                                                    break
 
-            # Get venue location
-            address = venue.get('address', {})
-            if address and isinstance(address, dict):
-                city = address.get('city', '')
-                state = address.get('state', '')
-                details["venue_city"] = city
-                details["venue_state"] = state
-                if city and state:
-                    details["venue_location"] = f"{city}, {state}"
-                logger.debug(f"Game {game_id}: Venue location: {details['venue_location']}")
-
-        # Extract attendance
-        attendance = game_info.get('attendance')
-        details["attendance"] = attendance
-        logger.debug(f"Game {game_id}: Attendance: {attendance}")
-
-        # Extract officials/referees
-        officials = game_info.get('officials', [])
-        if officials and isinstance(officials, list):
-            for official in officials:
-                if not isinstance(official, dict):
-                    continue
-
-                position = official.get('position', {})
-                official_info = {
-                    "name": official.get('fullName', ''),
-                    "display_name": official.get('displayName', ''),
-                    "position": position.get('displayName', '') if isinstance(position, dict) else '',
-                    "position_id": position.get('id', '') if isinstance(position, dict) else '',
-                    "order": official.get('order', 0)
-                }
-                details["officials"].append(official_info)
-
-            logger.debug(f"Game {game_id}: Extracted {len(details['officials'])} officials")
-
-    # Extract format information
-    format_data = game_data.get('format')
-    if format_data:
-        details["format"] = format_data
-        logger.debug(f"Game {game_id}: Format extracted")
-
-    logger.debug(f"Game {game_id}: Game details extraction complete")
-    return details
+    return game_details
 
 
 def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[str, Any]:
@@ -480,7 +486,7 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                 "venue_id":
                     game_details["venue_id"],
                 "venue":
-                    game_details["venue_name"],
+                    game_details["venue"],
                 "venue_location":
                     game_details["venue_location"],
                 "venue_city":
@@ -489,23 +495,31 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                     game_details["venue_state"],
                 "attendance":
                     game_details["attendance"],
-                "status": (game_details.get("status", {}).get("description", "") or
-                           game_details.get("status", {}).get("short_detail", "") or
-                           game_details.get("status", {}).get("name", "")),
+                "status": (game_details["status"] if isinstance(game_details.get("status"), str) else
+                           (game_details.get("status", {}).get("description", "") or game_details.get("status", {}).get(
+                               "short_detail", "") or game_details.get("status", {}).get("name", "")) if isinstance(
+                                   game_details.get("status"), dict) else ""),
                 "state":
-                    game_details.get("status", {}).get("state", ""),
+                    game_details.get("status", {}).get("state", "")
+                    if isinstance(game_details.get("status"), dict) else "",
                 "neutral_site":
-                    game_details.get("neutral_site", False),
-                "format":
-                    game_details.get("format", None),
+                    game_details["neutral_site"],
                 "completed":
-                    game_details.get("status", {}).get("completed", False),
+                    game_details["completed"],
                 "broadcast":
-                    ", ".join([b.get("media", "") for b in game_details.get("broadcasts", []) if b.get("media")]),
+                    game_details["broadcast"],
                 "broadcast_market":
-                    ", ".join([b.get("market", "") for b in game_details.get("broadcasts", []) if b.get("market")]),
+                    game_details["broadcast_market"],
                 "conference":
-                    game_details.get("groups", {}).get("name", ""),
+                    game_details["conference"],
+                "regulation_clock":
+                    game_details.get("regulation_clock", 600.0),
+                "overtime_clock":
+                    game_details.get("overtime_clock", 300.0),
+                "period_name":
+                    game_details.get("period_name", "Quarter"),
+                "num_periods":
+                    game_details.get("num_periods", 4)
             }
 
             logger.debug(f"Game {game_id}: Game info built successfully")
@@ -860,6 +874,25 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                                 'tie_percentage': prob.get('tiePercentage', None)
                             }
 
+                # Create team and player lookup maps for filling empty names
+                team_lookup = {}
+                player_lookup = {}
+
+                # Populate team lookup from teams_info data
+                for team_info in teams_info:
+                    team_id = str(team_info.get("team_id", ""))
+                    if team_id:
+                        team_lookup[team_id] = {
+                            "name": team_info.get("team_name", ""),
+                            "abbreviation": team_info.get("team_abbreviation", "")
+                        }
+
+                # Populate player lookup from player_stats data
+                for player_stat in player_stats:
+                    player_id = str(player_stat.get("player_id", ""))
+                    if player_id:
+                        player_lookup[player_id] = {"name": player_stat.get("player_name", "")}
+
                 for play in game_data['plays']:
                     if not isinstance(play, dict):
                         continue
@@ -915,6 +948,14 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                             play.get("wallclock", ""),
                     }
 
+                    # Extract player information
+                    for i in range(1, 3):  # Get data for player 1 and player 2
+                        athlete_key = f"athlete{i}"
+                        if athlete_key in play and isinstance(play[athlete_key], dict):
+                            play_info[f"player_{i}_id"] = play[athlete_key].get("id", "")
+                            play_info[f"player_{i}_name"] = play[athlete_key].get("displayName", "")
+                            play_info[f"player_{i}_role"] = play[athlete_key].get("role", "")
+
                     # Add win probability data if available for this play
                     play_id = play.get("id", "")
                     if play_id in win_prob_mapping:
@@ -924,24 +965,25 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                                 "home_win_percentage"] is not None else None
                         play_info["tie_percentage"] = win_prob_mapping[play_id]["tie_percentage"]
 
-                    # Add player information if available
-                    if 'participants' in play and isinstance(play['participants'], list):
-                        for i, participant in enumerate(play["participants"]):
-                            if not isinstance(participant, dict):
-                                continue
+                    # Fill in empty team names if we have a valid team_id and it's in our lookup
+                    if play_info["team_id"] and not play_info["team_name"]:
+                        team_id_str = str(play_info["team_id"])
+                        if team_id_str in team_lookup:
+                            play_info["team_name"] = team_lookup[team_id_str]["name"]
+                            logger.debug(f"Filled empty team name for team ID {team_id_str} in play {play_id}")
 
-                            player_id = participant.get("athlete", {}).get("id", "") if isinstance(
-                                participant.get("athlete"), dict) else ""
-                            play_info[f"player_{i+1}_id"] = player_id
+                    # Fill in empty player names if we have valid player_ids and they're in our lookup
+                    for i in range(1, 3):
+                        player_id_key = f"player_{i}_id"
+                        player_name_key = f"player_{i}_name"
 
-                            # Try to get player name - might need to be resolved later
-                            player_name = participant.get("athlete", {}).get("displayName", "") if isinstance(
-                                participant.get("athlete"), dict) else ""
-                            play_info[f"player_{i+1}_name"] = player_name
-
-                            # Get role
-                            play_info[f"player_{i+1}_role"] = participant.get("type", {}).get("text", "") if isinstance(
-                                participant.get("type"), dict) else ""
+                        if player_id_key in play_info and player_name_key in play_info:
+                            if play_info[player_id_key] and not play_info[player_name_key]:
+                                player_id_str = str(play_info[player_id_key])
+                                if player_id_str in player_lookup:
+                                    play_info[player_name_key] = player_lookup[player_id_str]["name"]
+                                    logger.debug(
+                                        f"Filled empty player name for player ID {player_id_str} in play {play_id}")
 
                     play_by_play.append(play_info)
 
@@ -990,16 +1032,16 @@ def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
     
     Args:
         df: The dataframe to optimize
-        data_type: The type of data in the dataframe (e.g., "game_info", "broadcasts", etc.)
+        data_type: The type of data in the dataframe (e.g., "player_stats", "team_stats", etc.)
         
     Returns:
-        Optimized dataframe with proper dtypes
+        DataFrame with proper dtypes
     """
     if df.empty:
         return df
 
     # Make a copy to avoid modifying original
-    optimized_df = df.copy()
+    result_df = df.copy()
 
     # Common ID columns to convert to integers across all dataframes
     id_columns = {
@@ -1014,19 +1056,30 @@ def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
         "sequence_number": True
     }
 
+    # Common columns that should be categorical across all dataframes
+    categorical_columns = [
+        "home_away", "type", "market", "lang", "region", "team_abbreviation", "position", "state", "status", "play_type"
+    ]
+
     # Dataframe-specific columns to convert
     datatype_conversions = {
         "broadcasts": {
             # No specific additional conversions
         },
         "game_info": {
-            "attendance": "Int64"  # Nullable integer
+            "attendance": "Int64",  # Nullable integer
+            "date": "datetime64[ns]",  # Convert date strings to datetime
+            "neutral_site": "bool",
+            "completed": "bool"
         },
         "game_summary": {
-            # All appropriate columns already converted
+            "error": "categorical",  # Most errors are empty or a few unique values
+            "processed": "bool"
         },
         "officials": {
-            # No additional columns to convert
+            "position": "categorical",
+            "name": "categorical",
+            "display_name": "categorical"
         },
         "play_by_play": {
             "play_id": False,  # Don't convert this to int as it may be too large
@@ -1038,7 +1091,9 @@ def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
             "coordinate_y": "float64",
             "home_win_percentage": "float64",
             "away_win_percentage": "float64",
-            "tie_percentage": "float64"
+            "tie_percentage": "float64",
+            "period_display": "categorical",
+            "wallclock": "datetime64[ns]"  # Convert wallclock to datetime
         },
         "player_stats": {
             "jersey": "Int64",
@@ -1052,23 +1107,15 @@ def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
             "TO": "float64",
             "PF": "float64",
             "PTS": "float64",
-            # Handle original raw stat columns that contain strings like "1-3"
             "FG": False,
             "3PT": False,
             "FT": False,
-            "OREB": False,
-            "DREB": False,
-            "REB": False,
-            "AST": False,
-            "STL": False,
-            "BLK": False,
-            "TO": False,
-            "PF": False,
-            "PTS": False
+            "starter": "bool",
+            "dnp": "bool"
         },
         "schedules": {
             "season": "Int64",
-            # All other important columns are handled by common ID columns
+            "event_date": "datetime64[ns]"  # Convert event_date to datetime
         },
         "team_stats": {
             # Prevent inadvertent conversion of raw stats that may contain "-"
@@ -1096,22 +1143,26 @@ def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
             "conference_id": "Int64"
         },
         "teams_info": {
-            "score": "Int64"
+            "score": "Int64",
+            "winner": "bool",
+            "team_color": "categorical",
+            "team_location": "categorical",
+            "team_nickname": "categorical"
         }
     }
 
     # Process common ID columns
     for col in id_columns:
-        if col in optimized_df.columns:
+        if col in result_df.columns:
             try:
                 # If column contains strings that look like integers, convert to Int64 (nullable integer)
-                if optimized_df[col].dtype == 'object' and id_columns[col]:
+                if result_df[col].dtype == 'object' and id_columns[col]:
                     # Check if all non-null values can be converted to integers
-                    non_null_values = optimized_df[col].dropna()
+                    non_null_values = result_df[col].dropna()
                     if len(non_null_values) > 0:
                         try:
                             # Try converting to integers
-                            optimized_df[col] = pd.to_numeric(optimized_df[col], errors='coerce').astype('Int64')
+                            result_df[col] = pd.to_numeric(result_df[col], errors='coerce').astype('Int64')
                             logger.debug(f"Converted {col} to Int64 in {data_type}")
                         except Exception as e:
                             # If conversion fails, keep as object
@@ -1119,44 +1170,176 @@ def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
             except Exception as e:
                 logger.warning(f"Error optimizing column {col} in {data_type}: {str(e)}")
 
+    # Process common categorical columns
+    for col in categorical_columns:
+        if col in result_df.columns and result_df[col].dtype == 'object':
+            try:
+                # Only convert to categorical if it's a string column and has fewer than 100 unique values
+                if result_df[col].nunique() < 100:
+                    result_df[col] = result_df[col].astype('category')
+                    logger.debug(f"Converted {col} to categorical in {data_type}")
+            except Exception as e:
+                logger.warning(f"Error converting {col} to categorical in {data_type}: {str(e)}")
+
+    # Special handling for format column in game_info
+    if data_type == "game_info" and "format" in result_df.columns:
+        try:
+            # Check if format column contains JSON-like strings
+            if result_df["format"].dtype == 'object':
+                # Try to extract regulation and overtime clocks
+                result_df["regulation_clock"] = result_df["format"].apply(lambda x: x.get("regulation", {}).get("clock")
+                                                                          if isinstance(x, dict) else None)
+
+                result_df["overtime_clock"] = result_df["format"].apply(lambda x: x.get("overtime", {}).get("clock")
+                                                                        if isinstance(x, dict) else None)
+
+                result_df["period_name"] = result_df["format"].apply(
+                    lambda x: x.get("regulation", {}).get("displayName") if isinstance(x, dict) else None)
+
+                result_df["num_periods"] = result_df["format"].apply(lambda x: x.get("regulation", {}).get("periods")
+                                                                     if isinstance(x, dict) else None)
+
+                logger.debug(f"Extracted format components in {data_type}")
+        except Exception as e:
+            logger.warning(f"Error processing format column in {data_type}: {str(e)}")
+
     # Process dataframe-specific conversions
     if data_type in datatype_conversions:
         for col, dtype in datatype_conversions[data_type].items():
-            if col in optimized_df.columns and dtype:
+            if col in result_df.columns and dtype:
                 try:
                     # Convert to specified dtype
                     if dtype == "Int64":
-                        optimized_df[col] = pd.to_numeric(optimized_df[col], errors='coerce').astype('Int64')
+                        result_df[col] = pd.to_numeric(result_df[col], errors='coerce').astype('Int64')
+                    elif dtype == "datetime64[ns]":
+                        # Special handling for datetime conversion
+                        result_df[col] = pd.to_datetime(result_df[col], errors='coerce')
+                    elif dtype == "categorical":
+                        # Only convert to categorical if it has a reasonable number of unique values
+                        if result_df[col].nunique() < 100:
+                            result_df[col] = result_df[col].astype('category')
+                    elif dtype == "bool":
+                        # Handle various representations of boolean values
+                        if result_df[col].dtype != 'bool':
+                            result_df[col] = result_df[col].map({
+                                True: True,
+                                'True': True,
+                                'true': True,
+                                1: True,
+                                '1': True,
+                                False: False,
+                                'False': False,
+                                'false': False,
+                                0: False,
+                                '0': False
+                            }).astype('bool')
                     else:
                         # For float conversions, ensure NaNs are preserved
                         if dtype == "float64":
-                            optimized_df[col] = pd.to_numeric(optimized_df[col], errors='coerce')
+                            result_df[col] = pd.to_numeric(result_df[col], errors='coerce')
                         else:
-                            optimized_df[col] = optimized_df[col].astype(dtype)
+                            result_df[col] = result_df[col].astype(dtype)
                 except Exception as e:
                     logger.warning(f"Error converting {col} to {dtype} in {data_type}: {str(e)}")
-            elif col in optimized_df.columns and dtype is False:
+            elif col in result_df.columns and dtype is False:
                 # Explicitly skip conversion for this column
                 logger.debug(f"Skipping conversion for {col} in {data_type} as requested")
 
     # Special handling for player_stats to ensure DNP players have proper null values
     if data_type == "player_stats":
         # If dnp is True, ensure all stat columns are set to NaN
-        if "dnp" in optimized_df.columns:
+        if "dnp" in result_df.columns:
             stat_columns = [
                 "MIN", "FG_MADE", "FG_ATT", "FG_PCT", "3PT_MADE", "3PT_ATT", "3PT_PCT", "FT_MADE", "FT_ATT", "FT_PCT",
                 "OREB", "DREB", "REB", "AST", "STL", "BLK", "TO", "PF", "PTS"
             ]
 
             for col in stat_columns:
-                if col in optimized_df.columns:
+                if col in result_df.columns:
                     # Set stats to NaN where dnp is True
-                    dnp_mask = optimized_df["dnp"] == True
+                    dnp_mask = result_df["dnp"] == True
                     if dnp_mask.any():
-                        optimized_df.loc[dnp_mask, col] = np.nan
+                        result_df.loc[dnp_mask, col] = np.nan
                         logger.debug(f"Set {col} to NaN for {dnp_mask.sum()} DNP players in {data_type}")
 
-    return optimized_df
+            # Convert string stat columns to numeric
+            basic_stat_columns = ["OREB", "DREB", "REB", "AST", "STL", "BLK", "TO", "PF", "PTS"]
+            for col in basic_stat_columns:
+                if col in result_df.columns and result_df[col].dtype == 'object':
+                    try:
+                        # Convert string stats to numeric, handling 'DNP' and other non-numeric values
+                        result_df[col] = pd.to_numeric(result_df[col], errors='coerce')
+                        logger.debug(f"Converted {col} from string to numeric in {data_type}")
+                    except Exception as e:
+                        logger.warning(f"Error converting {col} to numeric in {data_type}: {str(e)}")
+
+    # Fill empty names in play_by_play when we have valid IDs
+    if data_type == "play_by_play":
+        for id_col, name_col in [("team_id", "team_name"), ("player_1_id", "player_1_name"),
+                                 ("player_2_id", "player_2_name")]:
+            if id_col in result_df.columns and name_col in result_df.columns:
+                # Check if we have rows with valid IDs but empty names
+                mask = result_df[id_col].notna() & result_df[name_col].isna()
+                if mask.any():
+                    logger.debug(f"Found {mask.sum()} rows with valid {id_col} but empty {name_col}")
+                    # Note: We would need team/player lookup tables to properly fill these
+
+    return result_df
+
+
+def remove_redundant_columns(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
+    """
+    Remove redundant columns from dataframes to optimize storage and clarity.
+    
+    Args:
+        df: The dataframe to optimize
+        data_type: The type of data in the dataframe (e.g., "player_stats", "team_stats", etc.)
+        
+    Returns:
+        DataFrame with redundant columns removed
+    """
+    if df.empty:
+        return df
+
+    # Make a copy to avoid modifying original
+    result_df = df.copy()
+
+    # For player_stats and team_stats, remove string columns where we have parsed numeric versions
+    if data_type in ["player_stats", "team_stats"]:
+        # Map of redundant columns to keep/remove
+        redundant_columns = {
+            # Format strings we can remove when we have the parsed values
+            "FG": ["FG_MADE", "FG_ATT", "FG_PCT"],
+            "3PT": ["3PT_MADE", "3PT_ATT", "3PT_PCT"],
+            "FT": ["FT_MADE", "FT_ATT", "FT_PCT"]
+        }
+
+        for str_col, parsed_cols in redundant_columns.items():
+            if str_col in result_df.columns:
+                # Check if all the parsed columns exist
+                if all(col in result_df.columns for col in parsed_cols):
+                    # Verify that the parsed columns have valid data
+                    if result_df[parsed_cols].notna().all(axis=1).mean() > 0.9:  # If >90% rows have parsed data
+                        # Safe to drop the redundant string column
+                        logger.debug(f"Removing redundant column {str_col} from {data_type} as we have parsed values")
+                        result_df = result_df.drop(columns=[str_col])
+
+    # For game_info, remove redundant broadcast info if we have detailed broadcast data
+    if data_type == "game_info" and "broadcast" in result_df.columns and "broadcast_market" in result_df.columns:
+        # We would need to check that broadcasts table is properly linked by game_id
+        # For now, just log that these could be candidates for removal
+        logger.debug(f"Game_info has broadcast columns that may be redundant with broadcasts table")
+
+    # If we extracted format components, consider removing the raw format column
+    if data_type == "game_info" and "format" in result_df.columns:
+        extracted_cols = ["regulation_clock", "overtime_clock", "period_name", "num_periods"]
+        if all(col in result_df.columns for col in extracted_cols):
+            if result_df[extracted_cols].notna().any(axis=1).mean() > 0.9:  # If >90% rows have extracted data
+                logger.debug(f"Removing format column from game_info as we have extracted the components")
+                result_df = result_df.drop(columns=["format"])
+
+    # Return optimized dataframe
+    return result_df
 
 
 def process_all_games(season: int, max_workers: int = 4, force: bool = False) -> Dict[str, pd.DataFrame]:
@@ -1205,76 +1388,112 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
     ]:
         game_results[data_type] = []
 
-    if game_ids:
-        with ProcessPoolExecutor(max_workers=max_workers) as executor:
-            # Create argument list for each game
-            args_list = [(game_id, season, force) for game_id in game_ids]
+    # Define a helper function to process results from each game
+    def process_game_result(result):
+        if result.get("processed", False) and "data" in result:
+            # Add record to game summary
+            game_results["game_summary"].append({
+                "game_id": result["game_id"],
+                "season": result.get("season", season),
+                "processed": True,
+                "error": ""
+            })
 
-            # Process games in parallel
-            for result in executor.map(process_game_with_season, args_list):
-                results.append(result)
+            # Add each data type to its respective consolidated list
+            for data_type, df in result["data"].items():
+                if not df.empty:
+                    game_results[data_type].append(df)
+        else:
+            # Add error record to game summary
+            game_results["game_summary"].append({
+                "game_id": result["game_id"],
+                "season": result.get("season", season),
+                "processed": False,
+                "error": result.get("error", "Unknown error")
+            })
 
-                # For successful processing, collect the data for consolidation
-                if result.get("processed", False) and "data" in result:
-                    # Collect each data type
-                    for data_type, df in result["data"].items():
-                        if not df.empty:
-                            game_results[data_type].append(df)
+    # Initialize game_summary as a special case
+    game_results["game_summary"] = []
 
-    # Create and save game summary dataframe for this season
-    processed_games = [r for r in results if r.get("processed", False)]
-    logger.info(f"Successfully processed {len(processed_games)} of {len(game_ids)} games")
+    # Process all games
+    with ProcessPoolExecutor(max_workers=max_workers) as executor:
+        # Submit all jobs
+        futures = [executor.submit(process_game_with_season, (game_id, season, force)) for game_id in game_ids]
 
-    # Save the summary to both CSV and Parquet formats
-    data = [{
-        "game_id": r.get("game_id", ""),
-        "season": season,
-        "processed": r.get("processed", False),
-        "error": r.get("error", "")
-    } for r in results]
-    summary_df = pd.DataFrame(data)
-
-    # Optimize the summary dataframe
-    summary_df = optimize_dataframe_dtypes(summary_df, "game_summary")
-
-    # Ensure directories exist
-    csv_season_dir = get_csv_season_dir(season)
-    parquet_season_dir = get_parquet_season_dir(season)
-    os.makedirs(csv_season_dir, exist_ok=True)
-    os.makedirs(parquet_season_dir, exist_ok=True)
-
-    # Save summary files
-    summary_df.to_csv(csv_season_dir / "game_summary.csv", index=False)
-    summary_df.to_parquet(parquet_season_dir / "game_summary.parquet", index=False)
-
-    # Create consolidated DataFrames and save to files
-    consolidated_dfs = {}
-    for data_type, dataframes in game_results.items():
-        if dataframes:
+        # Process results as they complete
+        for future in as_completed(futures):
             try:
-                # Concatenate all dataframes for this data type
-                combined_df = pd.concat(dataframes, ignore_index=True)
+                result = future.result()
+                process_game_result(result)
+            except Exception as e:
+                logger.error(f"Error processing game result: {str(e)}")
+
+    # Create combined DataFrames
+    combined_dfs = {}
+    for data_type, df_list in game_results.items():
+        if df_list:
+            try:
+                # Handle special case for game_summary which might be a list of dictionaries
+                if data_type == "game_summary":
+                    # Convert any dictionaries to dataframes before concatenating
+                    df_objects = []
+                    for item in df_list:
+                        if isinstance(item, pd.DataFrame):
+                            df_objects.append(item)
+                        elif isinstance(item, dict):
+                            df_objects.append(pd.DataFrame([item]))
+
+                    if df_objects:
+                        combined_df = pd.concat(df_objects, ignore_index=True)
+                    else:
+                        combined_df = pd.DataFrame()
+                else:
+                    # Standard case for other data types
+                    combined_df = pd.concat(df_list, ignore_index=True)
 
                 # Optimize datatypes
                 combined_df = optimize_dataframe_dtypes(combined_df, data_type)
 
-                consolidated_dfs[data_type] = combined_df
+                # Remove redundant columns
+                combined_df = remove_redundant_columns(combined_df, data_type)
 
-                # Save as CSV and Parquet
-                combined_df.to_csv(csv_season_dir / f"{data_type}.csv", index=False)
-                combined_df.to_parquet(parquet_season_dir / f"{data_type}.parquet", index=False)
-
-                logger.info(f"Saved consolidated {data_type} data with {len(combined_df)} records for season {season}")
+                combined_dfs[data_type] = combined_df
+                logger.info(f"Created combined {data_type} DataFrame with {len(combined_df)} rows")
             except Exception as e:
-                logger.error(f"Error saving consolidated {data_type} data for season {season}: {str(e)}")
-                consolidated_dfs[data_type] = pd.DataFrame()
+                logger.error(f"Error creating combined DataFrame for {data_type}: {str(e)}")
+                combined_dfs[data_type] = pd.DataFrame()
+        else:
+            combined_dfs[data_type] = pd.DataFrame()
 
-    return {"game_summary": summary_df, **consolidated_dfs}
+    # Make directories if they don't exist
+    csv_season_dir = get_csv_season_dir(season)
+    parquet_season_dir = get_parquet_season_dir(season)
+
+    os.makedirs(csv_season_dir, exist_ok=True)
+    os.makedirs(parquet_season_dir, exist_ok=True)
+
+    # Save summary files
+    for data_type, df in combined_dfs.items():
+        if not df.empty:
+            try:
+                # Save as CSV
+                csv_path = csv_season_dir / f"{data_type}.csv"
+                df.to_csv(csv_path, index=False)
+                logger.info(f"Saved {data_type}.csv with {len(df)} rows")
+
+                # Save as Parquet
+                parquet_path = parquet_season_dir / f"{data_type}.parquet"
+                df.to_parquet(parquet_path, index=False)
+                logger.info(f"Saved {data_type}.parquet with {len(df)} rows")
+            except Exception as e:
+                logger.error(f"Error saving {data_type} files: {str(e)}")
+
+    return combined_dfs
 
 
 def process_schedules(season: int, force: bool = False) -> pd.DataFrame:
     """
-    Process schedules for all teams for a specific season.
+    Process schedule data for a specific season.
     
     Args:
         season: Season year to process
@@ -1291,7 +1510,8 @@ def process_schedules(season: int, force: bool = False) -> pd.DataFrame:
 
     if not force and csv_schedules_file.exists():
         logger.info(f"Using cached schedules for season {season}")
-        return pd.read_csv(csv_schedules_file)
+        # Read with parse_dates to ensure datetime type
+        return pd.read_csv(csv_schedules_file, parse_dates=['event_date'])
 
     # Get all schedule files for this season
     schedules_dir = get_schedules_dir(season)
@@ -1321,15 +1541,21 @@ def process_schedules(season: int, force: bool = False) -> pd.DataFrame:
             event_id = event.get("id", "")
             event_date = event.get("date", "")
 
-            # Use string manipulation for dates - some entries might not follow ISO format
+            # More robust ISO date parsing
             if event_date:
                 try:
                     # Try to parse the date string
-                    dt = datetime.fromisoformat(event_date.replace('Z', '+00:00'))
-                    event_date = dt.date().isoformat()
+                    # Handle various ISO formats including Z vs +00:00
+                    dt = pd.to_datetime(event_date, errors='coerce')
+                    if pd.notna(dt):
+                        event_date = dt
+                    else:
+                        # Fallback to string manipulation for oddly formatted dates
+                        dt = datetime.fromisoformat(event_date.replace('Z', '+00:00'))
+                        event_date = dt
                 except (ValueError, TypeError):
-                    # If parsing fails, just use the string as is
-                    pass
+                    # If parsing fails, just keep as string
+                    logger.debug(f"Could not parse date {event_date} for event {event_id}")
 
             for competition in event.get("competitions", []):
                 game_id = competition.get("id", "")
@@ -1350,21 +1576,31 @@ def process_schedules(season: int, force: bool = False) -> pd.DataFrame:
     # Convert to dataframe
     schedules_df = pd.DataFrame(all_games)
 
-    if not schedules_df.empty:
-        # Optimize datatypes
-        schedules_df = optimize_dataframe_dtypes(schedules_df, "schedules")
+    # Optimize datatypes
+    schedules_df = optimize_dataframe_dtypes(schedules_df, "schedules")
 
-        # Save to CSV and Parquet in the season directory
-        os.makedirs(csv_season_dir, exist_ok=True)
+    # Ensure event_date is datetime
+    if 'event_date' in schedules_df.columns and schedules_df['event_date'].dtype != 'datetime64[ns]':
+        try:
+            schedules_df['event_date'] = pd.to_datetime(schedules_df['event_date'], errors='coerce')
+            logger.debug("Converted event_date to datetime")
+        except Exception as e:
+            logger.warning(f"Error converting event_date to datetime: {str(e)}")
 
-        parquet_season_dir = get_parquet_season_dir(season)
-        os.makedirs(parquet_season_dir, exist_ok=True)
+    # Ensure directory exists
+    csv_season_dir = get_csv_season_dir(season)
+    parquet_season_dir = get_parquet_season_dir(season)
 
-        # Save files
+    os.makedirs(csv_season_dir, exist_ok=True)
+    os.makedirs(parquet_season_dir, exist_ok=True)
+
+    # Save to CSV and Parquet
+    try:
         schedules_df.to_csv(csv_schedules_file, index=False)
         schedules_df.to_parquet(parquet_season_dir / "schedules.parquet", index=False)
-    else:
-        logger.warning(f"No schedule data to save for season {season}")
+        logger.info(f"Saved schedules for season {season} with {len(schedules_df)} games")
+    except Exception as e:
+        logger.error(f"Error saving schedules for season {season}: {str(e)}")
 
     return schedules_df
 
