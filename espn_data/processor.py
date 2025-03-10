@@ -965,6 +965,62 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                             play_info[f"player_{i}_name"] = play[athlete_key].get("displayName", "")
                             play_info[f"player_{i}_role"] = play[athlete_key].get("role", "")
 
+                    # Check for additional player fields like participantsCodes, athletesInvolved, etc.
+                    player_ids = []
+
+                    # Check for participantsCodes field
+                    if 'participantsCodes' in play and isinstance(play['participantsCodes'], list):
+                        player_ids.extend(play['participantsCodes'])
+
+                    # Check for athletesInvolved field
+                    if 'athletesInvolved' in play and isinstance(play['athletesInvolved'], list):
+                        for athlete in play['athletesInvolved']:
+                            if isinstance(athlete, dict) and 'id' in athlete:
+                                player_ids.append(athlete['id'])
+                            elif isinstance(athlete, str):
+                                player_ids.append(athlete)
+
+                    # Check for participants field
+                    if 'participants' in play and isinstance(play['participants'], list):
+                        for idx, participant in enumerate(play['participants']):
+                            if isinstance(participant, dict) and 'athlete' in participant and isinstance(
+                                    participant['athlete'], dict):
+                                player_id = participant['athlete'].get('id', '')
+                                if player_id:
+                                    player_ids.append(player_id)
+                                    # Add each participant's player ID as a separate column
+                                    play_info[f"participant_{idx+1}_id"] = player_id
+
+                    # Add all player IDs as a comma-separated string
+                    if player_ids:
+                        # Remove duplicates while preserving order
+                        unique_player_ids = []
+                        for pid in player_ids:
+                            if pid not in unique_player_ids:
+                                unique_player_ids.append(pid)
+
+                        play_info["all_player_ids"] = ",".join(str(pid) for pid in unique_player_ids)
+
+                    # Also check for a generic athletes field
+                    if 'athletes' in play and isinstance(play['athletes'], list):
+                        athlete_data = []
+                        for athlete in play['athletes']:
+                            if isinstance(athlete, dict):
+                                athlete_id = None
+                                athlete_name = None
+
+                                if 'id' in athlete:
+                                    athlete_id = athlete['id']
+                                elif 'athlete' in athlete and isinstance(athlete['athlete'], dict):
+                                    athlete_id = athlete['athlete'].get('id', '')
+                                    athlete_name = athlete['athlete'].get('displayName', '')
+
+                                if athlete_id:
+                                    athlete_data.append(str(athlete_id))
+
+                        if athlete_data:
+                            play_info["athletes_data"] = ",".join(athlete_data)
+
                     # Add win probability data if available for this play
                     play_id = play.get("id", "")
                     if play_id in win_prob_mapping:
@@ -1458,7 +1514,12 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
                         combined_df = pd.DataFrame()
                 else:
                     # Standard case for other data types
-                    combined_df = pd.concat(df_list, ignore_index=True)
+                    # Filter out empty DataFrames to avoid FutureWarning
+                    non_empty_dfs = [df for df in df_list if not df.empty]
+                    if non_empty_dfs:
+                        combined_df = pd.concat(non_empty_dfs, ignore_index=True)
+                    else:
+                        combined_df = pd.DataFrame()
 
                 # Optimize datatypes
                 combined_df = optimize_dataframe_dtypes(combined_df, data_type)
