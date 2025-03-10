@@ -98,4 +98,12 @@ async def main() -> None:
 
 
 if __name__ == "__main__":
+    # Configure logging - set level to DEBUG to see more detailed information
+    logging.basicConfig(
+        level=logging.DEBUG,  # Change from INFO to DEBUG
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        handlers=[logging.FileHandler("espn_scraper.log"),
+                  logging.StreamHandler()])
+
+    # Run the command-line interface
     asyncio.run(main())
