@@ -64,19 +64,19 @@ def process_teams_data(force: bool = False) -> pd.DataFrame:
     teams = []
     for team in teams_data:
         team_info = {
-            "id": team.get("id", ""),
-            "slug": team.get("slug", ""),
-            "abbreviation": team.get("abbreviation", ""),
-            "display_name": team.get("displayName", ""),
-            "short_name": team.get("shortDisplayName", ""),
-            "name": team.get("name", ""),
-            "nickname": team.get("nickname", ""),
-            "location": team.get("location", ""),
-            "color": team.get("color", ""),
-            "alternate_color": team.get("alternateColor", ""),
-            "logo": team.get("logos", [{}])[0].get("href", "") if "logos" in team and team["logos"] else "",
-            "conference_id": team.get("conference", {}).get("id", "") if "conference" in team else "",
-            "conference_name": team.get("conference", {}).get("name", "") if "conference" in team else "",
+            "id": team.get("id", None),
+            "slug": team.get("slug", None),
+            "abbreviation": team.get("abbreviation", None),
+            "display_name": team.get("displayName", None),
+            "short_name": team.get("shortDisplayName", None),
+            "name": team.get("name", None),
+            "nickname": team.get("nickname", None),
+            "location": team.get("location", None),
+            "color": team.get("color", None),
+            "alternate_color": team.get("alternateColor", None),
+            "logo": team.get("logos", [{}])[0].get("href", None) if "logos" in team and team["logos"] else None,
+            "conference_id": team.get("conference", {}).get("id", None) if "conference" in team else None,
+            "conference_name": team.get("conference", {}).get("name", None) if "conference" in team else None,
         }
         teams.append(team_info)
 
@@ -154,54 +154,48 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
     # Initialize the game_details dictionary
     game_details = {
         "game_id": game_id,
-        "date": "",
-        "venue_id": "",
-        "venue": "",
-        "venue_name": "",
-        "venue_location": "",
-        "venue_city": "",
-        "venue_state": "",
+        "date": None,
+        "venue_id": None,
+        "venue": None,
+        "venue_name": None,
+        "venue_location": None,
+        "venue_city": None,
+        "venue_state": None,
         "attendance": None,
-        "status": "",
-        "neutral_site": False,
+        "status": None,
+        "neutral_site": None,
         "format": None,
-        "completed": False,
-        "broadcast": "",
-        "broadcast_market": "",
-        "conference": "",
+        "completed": None,
+        "broadcast": None,
+        "broadcast_market": None,
+        "conference": None,
         "teams": []
     }
 
-    # Extract game date
+    # Extract season information
+    if 'season' in game_data and isinstance(game_data['season'], dict):
+        game_details["season"] = game_data['season'].get('year', None)
+
+    # Extract date information
     if 'date' in game_data:
         game_details["date"] = game_data['date']
-    elif 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
-            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
-        if 'date' in game_data['header']['competitions'][0]:
-            game_details["date"] = game_data['header']['competitions'][0]['date']
 
     # Extract venue information
-    venue_data = None
-    if 'gameInfo' in game_data and 'venue' in game_data['gameInfo']:
-        venue_data = game_data['gameInfo']['venue']
-    elif 'venue' in game_data:
-        venue_data = game_data['venue']
-    elif 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
-            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
-        venue_data = game_data['header']['competitions'][0].get('venue')
+    if 'competitions' in game_data['header'] and isinstance(game_data['header']['competitions'], list) and len(
+            game_data['header']['competitions']) > 0:
+        competition = game_data['header']['competitions'][0]
+        if 'venue' in competition and isinstance(competition['venue'], dict):
+            venue_data = competition['venue']
+            game_details["venue_id"] = venue_data.get('id', None)
+            game_details["venue"] = venue_data.get('fullName', None)
+            game_details["venue_name"] = venue_data.get('fullName', None)
 
-    if venue_data and isinstance(venue_data, dict):
-        game_details["venue_id"] = venue_data.get('id', '')
-        game_details["venue"] = venue_data.get('fullName', '')
-        game_details["venue_name"] = venue_data.get('fullName', '')
-
-        address = venue_data.get('address', {})
-        city = address.get('city', '')
-        state = address.get('state', '')
-
-        game_details["venue_location"] = f"{city}, {state}" if city and state else city or state
-        game_details["venue_city"] = city
-        game_details["venue_state"] = state
+            if 'address' in venue_data and isinstance(venue_data['address'], dict):
+                address = venue_data['address']
+                city = address.get('city', None)
+                state = address.get('state', None)
+                game_details["venue_city"] = city
+                game_details["venue_state"] = state
 
     # Extract attendance information
     if 'gameInfo' in game_data and 'attendance' in game_data['gameInfo']:
@@ -224,10 +218,10 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
         status_type = game_data['status'].get('type', {})
 
     if status_type and isinstance(status_type, dict):
-        game_details["status"] = status_type.get('name', '')
+        game_details["status"] = status_type.get('name', None)
         game_details["completed"] = status_type.get('completed', False)
     else:
-        game_details["status"] = ''
+        game_details["status"] = None
         game_details["completed"] = False
 
     # Extract neutral site information
@@ -255,22 +249,17 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
             if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
                 # Handle market as an object with type property
                 market_obj = broadcast.get('market', {})
-                market_type = ""
-
-                if isinstance(market_obj, dict) and 'type' in market_obj:
-                    market_type = market_obj.get('type', '')
-                elif isinstance(market_obj, str):
-                    market_type = market_obj
+                market_type = market_obj.get('type', None)
 
                 if isinstance(market_type, str) and market_type.lower() == 'national':
                     # Make sure media is a dictionary
                     media = broadcast.get('media', {})
                     if isinstance(media, dict):
-                        game_details["broadcast"] = media.get('shortName', '')
+                        game_details["broadcast"] = media.get('shortName', None)
                     elif isinstance(media, str):
                         game_details["broadcast"] = media
                     else:
-                        game_details["broadcast"] = ""
+                        game_details["broadcast"] = None
                     # Set the market type
                     if market_type:
                         game_details["broadcast_market"] = market_type
@@ -281,19 +270,14 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
             if isinstance(game_data['broadcasts'][0], dict) and 'media' in game_data['broadcasts'][0]:
                 media = game_data['broadcasts'][0].get('media', {})
                 if isinstance(media, dict):
-                    game_details["broadcast"] = media.get('shortName', '')
+                    game_details["broadcast"] = media.get('shortName', None)
                 elif isinstance(media, str):
                     game_details["broadcast"] = media
                 else:
-                    game_details["broadcast"] = ""
+                    game_details["broadcast"] = None
 
                 market_obj = game_data['broadcasts'][0].get('market', {})
-                market_type = ""
-
-                if isinstance(market_obj, dict) and 'type' in market_obj:
-                    market_type = market_obj.get('type', '')
-                elif isinstance(market_obj, str):
-                    market_type = market_obj
+                market_type = market_obj.get('type', None)
 
                 # Set the market type
                 if isinstance(market_type, str) and market_type:
@@ -310,22 +294,17 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                 if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
                     # Handle market as an object with type property
                     market_obj = broadcast.get('market', {})
-                    market_type = ""
-
-                    if isinstance(market_obj, dict) and 'type' in market_obj:
-                        market_type = market_obj.get('type', '')
-                    elif isinstance(market_obj, str):
-                        market_type = market_obj
+                    market_type = market_obj.get('type', None)
 
                     if isinstance(market_type, str) and market_type.lower() == 'national':
                         # Make sure media is a dictionary or string
                         media = broadcast.get('media', {})
                         if isinstance(media, dict):
-                            game_details["broadcast"] = media.get('shortName', '')
+                            game_details["broadcast"] = media.get('shortName', None)
                         elif isinstance(media, str):
                             game_details["broadcast"] = media
                         else:
-                            game_details["broadcast"] = ""
+                            game_details["broadcast"] = None
                         # Set the market type
                         if market_type:
                             game_details["broadcast_market"] = market_type
@@ -336,19 +315,14 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                 if isinstance(competition['broadcasts'][0], dict) and 'media' in competition['broadcasts'][0]:
                     media = competition['broadcasts'][0].get('media', {})
                     if isinstance(media, dict):
-                        game_details["broadcast"] = media.get('shortName', '')
+                        game_details["broadcast"] = media.get('shortName', None)
                     elif isinstance(media, str):
                         game_details["broadcast"] = media
                     else:
-                        game_details["broadcast"] = ""
+                        game_details["broadcast"] = None
 
                     market_obj = competition['broadcasts'][0].get('market', {})
-                    market_type = ""
-
-                    if isinstance(market_obj, dict) and 'type' in market_obj:
-                        market_type = market_obj.get('type', '')
-                    elif isinstance(market_obj, str):
-                        market_type = market_obj
+                    market_type = market_obj.get('type', None)
 
                     # Set the market type
                     if isinstance(market_type, str) and market_type:
@@ -361,22 +335,17 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
             if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
                 # Handle market as an object with type property
                 market_obj = broadcast.get('market', {})
-                market_type = ""
-
-                if isinstance(market_obj, dict) and 'type' in market_obj:
-                    market_type = market_obj.get('type', '')
-                elif isinstance(market_obj, str):
-                    market_type = market_obj
+                market_type = market_obj.get('type', None)
 
                 if isinstance(market_type, str) and market_type.lower() == 'national':
                     # Make sure media is a dictionary or string
                     media = broadcast.get('media', {})
                     if isinstance(media, dict):
-                        game_details["broadcast"] = media.get('shortName', '')
+                        game_details["broadcast"] = media.get('shortName', None)
                     elif isinstance(media, str):
                         game_details["broadcast"] = media
                     else:
-                        game_details["broadcast"] = ""
+                        game_details["broadcast"] = None
                     # Set the market type
                     if market_type:
                         game_details["broadcast_market"] = market_type
@@ -388,19 +357,14 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                           dict) and 'media' in game_data['gameInfo']['broadcasts'][0]:
                 media = game_data['gameInfo']['broadcasts'][0].get('media', {})
                 if isinstance(media, dict):
-                    game_details["broadcast"] = media.get('shortName', '')
+                    game_details["broadcast"] = media.get('shortName', None)
                 elif isinstance(media, str):
                     game_details["broadcast"] = media
                 else:
-                    game_details["broadcast"] = ""
+                    game_details["broadcast"] = None
 
                 market_obj = game_data['gameInfo']['broadcasts'][0].get('market', {})
-                market_type = ""
-
-                if isinstance(market_obj, dict) and 'type' in market_obj:
-                    market_type = market_obj.get('type', '')
-                elif isinstance(market_obj, str):
-                    market_type = market_obj
+                market_type = market_obj.get('type', None)
 
                 # Set the market type
                 if isinstance(market_type, str) and market_type:
@@ -421,14 +385,14 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
             for team in competition['competitors']:
                 if isinstance(team, dict) and 'team' in team and isinstance(team['team'], dict):
                     team_info = {
-                        "id": team['team'].get('id', ''),
-                        "name": team['team'].get('displayName', ''),
-                        "abbreviation": team['team'].get('abbreviation', ''),
-                        "location": team['team'].get('location', ''),
-                        "nickname": team['team'].get('name', ''),
-                        "color": team['team'].get('color', ''),
-                        "home_away": team.get('homeAway', ''),
-                        "score": team.get('score', ''),
+                        "id": team['team'].get('id', None),
+                        "name": team['team'].get('displayName', None),
+                        "abbreviation": team['team'].get('abbreviation', None),
+                        "location": team['team'].get('location', None),
+                        "nickname": team['team'].get('name', None),
+                        "color": team['team'].get('color', None),
+                        "home_away": team.get('homeAway', None),
+                        "score": team.get('score', None),
                         "winner": team.get('winner', False)
                     }
                     game_details["teams"].append(team_info)
@@ -445,7 +409,7 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
             if isinstance(play, dict) and 'team' in play:
                 # Check if team is a dictionary
                 if isinstance(play['team'], dict):
-                    team_id = play['team'].get('id', '')
+                    team_id = play['team'].get('id', None)
                     if team_id and not play['team'].get('name') and team_id in team_lookup:
                         # Fill empty team name from our lookup
                         play['team']['name'] = team_lookup[team_id]['name']
@@ -458,7 +422,7 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
             for player_num in [1, 2]:
                 player_key = f'athlete{player_num}'
                 if player_key in play and isinstance(play[player_key], dict):
-                    player_id = play[player_key].get('id', '')
+                    player_id = play[player_key].get('id', None)
                     if player_id and not play[player_key].get('displayName'):
                         # Look for this player in raw data
                         if 'boxscore' in game_data and 'players' in game_data['boxscore']:
@@ -527,27 +491,43 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
             logger.debug(f"Game {game_id}: Game details extracted, building game_info")
 
             game_info = {
-                "game_id": game_id,
-                "date": game_details["date"],
-                "venue_id": game_details["venue_id"],
-                "venue": game_details["venue"],
-                "venue_location": game_details["venue_location"],
-                "venue_city": game_details["venue_city"],
-                "venue_state": game_details["venue_state"],
-                "attendance": game_details["attendance"],
-                "status": (game_details["status"] if isinstance(game_details.get("status"), str) else
-                           (game_details.get("status", {}).get("description", "") or game_details.get("status", {}).get(
-                               "short_detail", "") or game_details.get("status", {}).get("name", "")) if isinstance(
-                                   game_details.get("status"), dict) else ""),
-                "neutral_site": game_details["neutral_site"],
-                "completed": game_details["completed"],
-                "broadcast": game_details["broadcast"],
-                "broadcast_market": game_details["broadcast_market"],
-                "conference": game_details["conference"],
-                "regulation_clock": game_details.get("regulation_clock", 600.0),
-                "overtime_clock": game_details.get("overtime_clock", 300.0),
-                "period_name": game_details.get("period_name", "Quarter"),
-                "num_periods": game_details.get("num_periods", 4)
+                "game_id":
+                    game_id,
+                "date":
+                    game_details["date"],
+                "venue_id":
+                    game_details["venue_id"],
+                "venue":
+                    game_details["venue"],
+                "venue_location":
+                    game_details["venue_location"],
+                "venue_city":
+                    game_details["venue_city"],
+                "venue_state":
+                    game_details["venue_state"],
+                "attendance":
+                    game_details["attendance"],
+                "status": (game_details.get("status", {}).get("description", None) or game_details.get(
+                    "status", {}).get("short_detail", None) or game_details.get("status", {}).get("name", None))
+                          if isinstance(game_details.get("status"), dict) else "",
+                "neutral_site":
+                    game_details["neutral_site"],
+                "completed":
+                    game_details["completed"],
+                "broadcast":
+                    game_details["broadcast"],
+                "broadcast_market":
+                    game_details["broadcast_market"],
+                "conference":
+                    game_details["conference"],
+                "regulation_clock":
+                    game_details.get("regulation_clock", 600.0),
+                "overtime_clock":
+                    game_details.get("overtime_clock", 300.0),
+                "period_name":
+                    game_details.get("period_name", "Quarter"),
+                "num_periods":
+                    game_details.get("num_periods", 4)
             }
 
             logger.debug(f"Game {game_id}: Game info built successfully")
@@ -561,10 +541,10 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
 
                 official_data = {
                     "game_id": game_id,
-                    "name": official.get("name", ""),
-                    "display_name": official.get("display_name", ""),
-                    "position": official.get("position", ""),
-                    "position_id": official.get("position_id", ""),
+                    "name": official.get("name", None),
+                    "display_name": official.get("display_name", None),
+                    "position": official.get("position", None),
+                    "position_id": official.get("position_id", None),
                     "order": official.get("order", 0)
                 }
                 officials_data.append(official_data)
@@ -578,11 +558,11 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
 
                 broadcast_data = {
                     "game_id": game_id,
-                    "type": broadcast.get("type", ""),
-                    "market": broadcast.get("market", ""),
-                    "media": broadcast.get("media", ""),
-                    "lang": broadcast.get("lang", ""),
-                    "region": broadcast.get("region", "")
+                    "type": broadcast.get("type", None),
+                    "market": broadcast.get("market", None),
+                    "media": broadcast.get("media", None),
+                    "lang": broadcast.get("lang", None),
+                    "region": broadcast.get("region", None)
                 }
                 broadcasts_data.append(broadcast_data)
 
@@ -595,14 +575,14 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
 
                 team_info = {
                     "game_id": game_id,
-                    "team_id": team.get("id", ""),
-                    "team_name": team.get("name", ""),
-                    "team_abbreviation": team.get("abbreviation", ""),
-                    "team_location": team.get("location", ""),
-                    "team_nickname": team.get("nickname", ""),
-                    "team_color": team.get("color", ""),
-                    "home_away": team.get("home_away", ""),
-                    "score": team.get("score", 0),
+                    "team_id": team.get("id", None),
+                    "team_name": team.get("name", None),
+                    "team_abbreviation": team.get("abbreviation", None),
+                    "team_location": team.get("location", None),
+                    "team_nickname": team.get("nickname", None),
+                    "team_color": team.get("color", None),
+                    "home_away": team.get("home_away", None),
+                    "score": team.get("score", None),
                     "winner": team.get("winner", False),
                 }
                 teams_info.append(team_info)
@@ -616,57 +596,57 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                         logger.warning(f"Game {game_id}: team_data is not a dictionary")
                         continue
 
-                    team_id = ""
-                    team_name = ""
-                    team_abbrev = ""
+                    team_id = None
+                    team_name = None
+                    team_abbrev = None
 
                     if team_data.get('team') and isinstance(team_data['team'], dict):
-                        team_id = team_data['team'].get('id', '')
-                        team_name = team_data['team'].get('displayName', '')
-                        team_abbrev = team_data['team'].get('abbreviation', '')
+                        team_id = team_data['team'].get('id', None)
+                        team_name = team_data['team'].get('displayName', None)
+                        team_abbrev = team_data['team'].get('abbreviation', None)
                     else:
                         logger.warning(f"Game {game_id}: team is None or not a dictionary")
 
                     # Process each statistic group
                     if team_data.get('statistics'):
                         logger.debug(f"Game {game_id}: Processing team statistics for {team_name}")
-                        for stat_group in team_data['statistics']:
-                            if not isinstance(stat_group, dict):
-                                logger.warning(f"Game {game_id}: stat_group is not a dictionary")
+                        for stat in team_data['statistics']:
+                            if not isinstance(stat, dict):
+                                logger.warning(f"Game {game_id}: stat is not a dictionary")
                                 continue
 
                             # Get stat keys and labels
-                            stat_keys = stat_group.get('keys', [])
-                            stat_labels = stat_group.get('names', []) or stat_group.get('labels', [])
+                            stat_keys = stat.get('keys', [])
+                            stat_labels = stat.get('names', []) or stat.get('labels', [])
 
                             if not stat_keys:
                                 logger.warning(f"Game {game_id}: Empty stat_keys")
 
                             # Process each player
-                            if stat_group.get('athletes') and isinstance(stat_group['athletes'], list):
-                                for athlete in stat_group['athletes']:
+                            if stat.get('athletes') and isinstance(stat['athletes'], list):
+                                for athlete in stat['athletes']:
                                     if not isinstance(athlete, dict):
                                         logger.warning(f"Game {game_id}: athlete is not a dictionary")
                                         continue
 
                                     # Get player info
-                                    player_id = ""
-                                    player_name = ""
-                                    player_position = ""
-                                    player_jersey = ""
+                                    player_id = None
+                                    player_name = None
+                                    player_position = None
+                                    player_jersey = None
                                     starter = False
                                     dnp = False
 
                                     # Extract player info
                                     if athlete.get('athlete') and isinstance(athlete['athlete'], dict):
-                                        player_id = athlete['athlete'].get('id', '')
-                                        player_name = athlete['athlete'].get('displayName', '')
+                                        player_id = athlete['athlete'].get('id', None)
+                                        player_name = athlete['athlete'].get('displayName', None)
 
                                         if athlete['athlete'].get('position') and isinstance(
                                                 athlete['athlete']['position'], dict):
-                                            player_position = athlete['athlete']['position'].get('abbreviation', '')
+                                            player_position = athlete['athlete']['position'].get('abbreviation', None)
 
-                                        player_jersey = athlete['athlete'].get('jersey', '')
+                                        player_jersey = athlete['athlete'].get('jersey', None)
                                     else:
                                         logger.warning(f"Game {game_id}: athlete.athlete is None or not a dictionary")
 
@@ -769,17 +749,17 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                     if not isinstance(team_data, dict):
                         continue
 
-                    team_id = ""
-                    team_name = ""
-                    team_abbrev = ""
-                    home_away = ""
+                    team_id = None
+                    team_name = None
+                    team_abbrev = None
+                    home_away = None
 
                     if 'team' in team_data and isinstance(team_data['team'], dict):
-                        team_id = team_data['team'].get('id', '')
-                        team_name = team_data['team'].get('displayName', '')
-                        team_abbrev = team_data['team'].get('abbreviation', '')
+                        team_id = team_data['team'].get('id', None)
+                        team_name = team_data['team'].get('displayName', None)
+                        team_abbrev = team_data['team'].get('abbreviation', None)
 
-                    home_away = team_data.get('homeAway', '')
+                    home_away = team_data.get('homeAway', None)
 
                     # Create basic team record
                     team_record = {
@@ -806,10 +786,11 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                                 continue
 
                             # Get the values we need
-                            display_value = stat.get('displayValue', '')
+                            display_value = stat.get('displayValue', None)
 
                             # Directly use abbreviation if available, fall back to label or name
-                            column_name = stat.get('abbreviation', '') or stat.get('label', '') or stat.get('name', '')
+                            column_name = stat.get('abbreviation', None) or stat.get('label', None) or stat.get(
+                                'name', None)
 
                             # Skip if no column name or already processed
                             if not column_name or column_name in team_record:
@@ -908,18 +889,18 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
 
                 # Populate team lookup from teams_info data
                 for team_info in teams_info:
-                    team_id = str(team_info.get("team_id", ""))
+                    team_id = str(team_info.get("team_id", None) or "")
                     if team_id:
                         team_lookup[team_id] = {
-                            "name": team_info.get("team_name", ""),
-                            "abbreviation": team_info.get("team_abbreviation", "")
+                            "name": team_info.get("team_name", None),
+                            "abbreviation": team_info.get("team_abbreviation", None)
                         }
 
                 # Populate player lookup from player_stats data
                 for player_stat in player_stats:
-                    player_id = str(player_stat.get("player_id", ""))
+                    player_id = str(player_stat.get("player_id", None) or "")
                     if player_id:
-                        player_lookup[player_id] = {"name": player_stat.get("player_name", "")}
+                        player_lookup[player_id] = {"name": player_stat.get("player_name", None)}
 
                 for play in game_data['plays']:
                     if not isinstance(play, dict):
@@ -929,37 +910,38 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                         "game_id":
                             game_id,
                         "play_id":
-                            play.get("id", ""),
+                            play.get("id", None),
                         "sequence_number":
-                            play.get("sequenceNumber", ""),
+                            play.get("sequenceNumber", None),
                         "period":
-                            play.get("period", {}).get("number", "") if isinstance(play.get("period"), dict) else "",
+                            play.get("period", {}).get("number", None)
+                            if isinstance(play.get("period"), dict) else None,
                         "period_display":
-                            play.get("period", {}).get("displayValue", "")
-                            if isinstance(play.get("period"), dict) else "",
+                            play.get("period", {}).get("displayValue", None)
+                            if isinstance(play.get("period"), dict) else None,
                         "clock":
-                            play.get("clock", {}).get("displayValue", "")
-                            if isinstance(play.get("clock"), dict) else "",
+                            play.get("clock", {}).get("displayValue", None)
+                            if isinstance(play.get("clock"), dict) else None,
                         "clock_seconds":
                             convert_clock_to_seconds(
-                                play.get("clock", {}).get("displayValue", "") if isinstance(play.get("clock"), dict
-                                                                                           ) else ""),
+                                play.get("clock", {}).get("displayValue", None) if isinstance(play.get("clock"), dict
+                                                                                             ) else ""),
                         "team_id":
-                            play.get("team", {}).get("id", "")
-                            if 'team' in play and isinstance(play.get("team"), dict) else "",
+                            play.get("team", {}).get("id", None)
+                            if 'team' in play and isinstance(play.get("team"), dict) else None,
                         "team_name":
-                            play.get("team", {}).get("name", "")
-                            if 'team' in play and isinstance(play.get("team"), dict) else "",
+                            play.get("team", {}).get("name", None)
+                            if 'team' in play and isinstance(play.get("team"), dict) else None,
                         "play_type":
-                            play.get("type", {}).get("text", "") if isinstance(play.get("type"), dict) else "",
+                            play.get("type", {}).get("text", None) if isinstance(play.get("type"), dict) else None,
                         "play_type_id":
-                            play.get("type", {}).get("id", "") if isinstance(play.get("type"), dict) else "",
+                            play.get("type", {}).get("id", None) if isinstance(play.get("type"), dict) else None,
                         "text":
-                            play.get("text", ""),
+                            play.get("text", None),
                         "score_home":
-                            play.get("homeScore", ""),
+                            play.get("homeScore", None),
                         "score_away":
-                            play.get("awayScore", ""),
+                            play.get("awayScore", None),
                         "scoring_play":
                             play.get("scoringPlay", False),
                         "score_value":
@@ -967,22 +949,22 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                         "shooting_play":
                             play.get("shootingPlay", False),
                         "coordinate_x":
-                            play.get("coordinate", {}).get("x", "")
-                            if 'coordinate' in play and isinstance(play.get("coordinate"), dict) else "",
+                            play.get("coordinate", {}).get("x", None)
+                            if 'coordinate' in play and isinstance(play.get("coordinate"), dict) else None,
                         "coordinate_y":
-                            play.get("coordinate", {}).get("y", "")
-                            if 'coordinate' in play and isinstance(play.get("coordinate"), dict) else "",
+                            play.get("coordinate", {}).get("y", None)
+                            if 'coordinate' in play and isinstance(play.get("coordinate"), dict) else None,
                         "wallclock":
-                            play.get("wallclock", ""),
+                            play.get("wallclock", None),
                     }
 
                     # Extract player information
                     for i in range(1, 3):  # Get data for player 1 and player 2
                         athlete_key = f"athlete{i}"
                         if athlete_key in play and isinstance(play[athlete_key], dict):
-                            play_info[f"player_{i}_id"] = play[athlete_key].get("id", "")
-                            play_info[f"player_{i}_name"] = play[athlete_key].get("displayName", "")
-                            play_info[f"player_{i}_role"] = play[athlete_key].get("role", "")
+                            play_info[f"player_{i}_id"] = play[athlete_key].get("id", None)
+                            play_info[f"player_{i}_name"] = play[athlete_key].get("displayName", None)
+                            play_info[f"player_{i}_role"] = play[athlete_key].get("role", None)
 
                     # Check for additional player fields like participantsCodes, athletesInvolved, etc.
                     player_ids = []
@@ -1004,7 +986,7 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                         for idx, participant in enumerate(play['participants']):
                             if isinstance(participant, dict) and 'athlete' in participant and isinstance(
                                     participant['athlete'], dict):
-                                player_id = participant['athlete'].get('id', '')
+                                player_id = participant['athlete'].get('id', None)
                                 if player_id:
                                     player_ids.append(player_id)
                                     # Add each participant's player ID as a separate column
@@ -1031,8 +1013,8 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                                 if 'id' in athlete:
                                     athlete_id = athlete['id']
                                 elif 'athlete' in athlete and isinstance(athlete['athlete'], dict):
-                                    athlete_id = athlete['athlete'].get('id', '')
-                                    athlete_name = athlete['athlete'].get('displayName', '')
+                                    athlete_id = athlete['athlete'].get('id', None)
+                                    athlete_name = athlete['athlete'].get('displayName', None)
 
                                 if athlete_id:
                                     athlete_data.append(str(athlete_id))
@@ -1041,7 +1023,7 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                             play_info["athletes_data"] = ",".join(athlete_data)
 
                     # Add win probability data if available for this play
-                    play_id = play.get("id", "")
+                    play_id = play.get("id", None)
                     if play_id in win_prob_mapping:
                         play_info["home_win_percentage"] = win_prob_mapping[play_id]["home_win_percentage"]
                         play_info["away_win_percentage"] = 1.0 - win_prob_mapping[play_id][
@@ -1328,6 +1310,13 @@ def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
             elif col in result_df.columns and dtype is False:
                 # Explicitly skip conversion for this column
                 logger.debug(f"Skipping conversion for {col} in {data_type} as requested")
+
+    # Convert any empty strings to NaN in all object columns
+    for col in result_df.columns:
+        if result_df[col].dtype == 'object':
+            # Replace empty strings with NaN
+            result_df[col] = result_df[col].replace('', np.nan)
+            logger.debug(f"Converted empty strings to NaN in column {col} of {data_type}")
 
     # Special handling for player_stats to ensure DNP players have proper null values
     if data_type == "player_stats":
@@ -1638,8 +1627,8 @@ def process_schedules(season: int, force: bool = False) -> pd.DataFrame:
             continue
 
         for event in schedule_data.get("events", []):
-            event_id = event.get("id", "")
-            event_date = event.get("date", "")
+            event_id = event.get("id", None)
+            event_date = event.get("date", None)
 
             # More robust ISO date parsing
             if event_date:
@@ -1658,10 +1647,10 @@ def process_schedules(season: int, force: bool = False) -> pd.DataFrame:
                     logger.debug(f"Could not parse date {event_date} for event {event_id}")
 
             for competition in event.get("competitions", []):
-                game_id = competition.get("id", "")
+                game_id = competition.get("id", None)
 
                 for team_data in competition.get("competitors", []):
-                    opponent_id = team_data.get("id", "")
+                    opponent_id = team_data.get("id", None)
 
                     if opponent_id != team_id:
                         all_games.append({
