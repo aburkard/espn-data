@@ -84,6 +84,9 @@ def process_teams_data(force: bool = False) -> pd.DataFrame:
     teams_df = pd.DataFrame(teams)
 
     if not teams_df.empty:
+        # Optimize datatypes
+        teams_df = optimize_dataframe_dtypes(teams_df, "teams")
+
         # Save to CSV and Parquet at the top level
         os.makedirs(csv_teams_file.parent, exist_ok=True)
         teams_df.to_csv(csv_teams_file, index=False)
@@ -111,22 +114,47 @@ def convert_clock_to_seconds(clock_str):
         return None
 
 
-def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
+def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[str, Any]:
     """
     Extract key game details like date, venue, etc. from game data.
     
     Args:
         game_data: Raw game data from the API
+        filename: Optional filename the data came from, used as fallback for game_id
         
     Returns:
         Dictionary with extracted details
     """
-    # Add detailed logging for debugging purposes
-    game_id = game_data.get('gameId', 'unknown')
+    # Try to get the game ID from various possible places
+    game_id = 'unknown'
+
+    # First try the 'gameId' field
+    if 'gameId' in game_data:
+        game_id = game_data['gameId']
+    # Then try header.id
+    elif 'header' in game_data and 'id' in game_data['header']:
+        game_id = game_data['header']['id']
+    # Then try header.competitions[0].id if available
+    elif ('header' in game_data and 'competitions' in game_data['header'] and
+          isinstance(game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0 and
+          'id' in game_data['header']['competitions'][0]):
+        game_id = game_data['header']['competitions'][0]['id']
+    # If we still don't have a valid game_id but we have a filename, try to extract from there
+    elif filename:
+        # Try to extract game_id from filename
+        basename = os.path.basename(filename)
+        if basename.endswith('.json'):
+            potential_id = os.path.splitext(basename)[0]
+            if potential_id and potential_id != 'unknown':
+                game_id = potential_id
+                logger.debug(f"Extracted game_id {game_id} from filename {filename}")
+
     logger.debug(f"Game {game_id}: Extracting game details")
 
     details = {
+        "game_id": game_id,
         "date": None,
+        "season": None,
         "venue_id": None,
         "venue_name": None,
         "venue_location": None,
@@ -156,6 +184,11 @@ def get_game_details(game_data: Dict[str, Any]) -> Dict[str, Any]:
     # Extract date and team information - first try from header for backward compatibility
     header = game_data.get('header')
     if header is not None:
+        # Extract season information if available
+        if 'season' in header and isinstance(header['season'], dict):
+            details["season"] = header['season'].get('year')
+            logger.debug(f"Game {game_id}: Season extracted: {details['season']}")
+
         competitions = header.get('competitions', [])
         if competitions and isinstance(competitions, list) and len(competitions) > 0:
             competition = competitions[0]
@@ -435,7 +468,7 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
         # 1. Extract game info
         if isinstance(game_data, dict):
             logger.debug(f"Game {game_id}: Extracting game details")
-            game_details = get_game_details(game_data)
+            game_details = get_game_details(game_data, data_path)
 
             logger.debug(f"Game {game_id}: Game details extracted, building game_info")
 
@@ -645,7 +678,15 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                                                 except (ValueError, ZeroDivisionError):
                                                     player_record[f"{column_name}_PCT"] = 0
                                             except (ValueError, TypeError):
-                                                pass
+                                                # For invalid formats, set values to NaN
+                                                player_record[f"{column_name}_MADE"] = np.nan
+                                                player_record[f"{column_name}_ATT"] = np.nan
+                                                player_record[f"{column_name}_PCT"] = np.nan
+                                        elif dnp:
+                                            # For DNP players, explicitly set stats to NaN
+                                            player_record[f"{column_name}_MADE"] = np.nan
+                                            player_record[f"{column_name}_ATT"] = np.nan
+                                            player_record[f"{column_name}_PCT"] = np.nan
 
                                     # Standardize column names to match team stats
                                     rename_map = {
@@ -665,6 +706,14 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                                     for old_name, new_name in rename_map.items():
                                         if old_name in player_record:
                                             player_record[new_name] = player_record.pop(old_name)
+
+                                    # For DNP players, make sure all stat fields are explicitly set to NaN
+                                    if dnp:
+                                        stat_fields = [
+                                            'MIN', 'OREB', 'DREB', 'REB', 'AST', 'STL', 'BLK', 'TO', 'PF', 'PTS'
+                                        ]
+                                        for field in stat_fields:
+                                            player_record[field] = np.nan
 
                                     player_stats.append(player_record)
                             else:
@@ -741,7 +790,10 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                                     except (ValueError, ZeroDivisionError):
                                         team_record[f"{column_name}_PCT"] = 0
                                 except (ValueError, TypeError):
-                                    pass
+                                    # For invalid formats, explicitly set as NaN
+                                    team_record[f"{column_name}_MADE"] = np.nan
+                                    team_record[f"{column_name}_ATT"] = np.nan
+                                    team_record[f"{column_name}_PCT"] = np.nan
 
                             # Convert numeric values
                             elif display_value.replace('.', '', 1).isdigit():
@@ -751,7 +803,11 @@ def process_game_data(game_id: str, season: int, force: bool = False) -> Dict[st
                                     else:
                                         team_record[column_name] = int(display_value)
                                 except (ValueError, TypeError):
+                                    # If conversion fails, keep as string
                                     pass
+                            # Handle missing/empty values
+                            elif not display_value or display_value.lower() in ['n/a', '-']:
+                                team_record[column_name] = np.nan
 
                     # Post-process to fix just a few inconsistencies and remove duplicates
                     standardize_map = {
@@ -928,6 +984,181 @@ def process_game_with_season(args):
     return process_game_data(game_id, season, force)
 
 
+def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
+    """
+    Optimize datatypes in a dataframe to reduce memory usage and improve consistency.
+    
+    Args:
+        df: The dataframe to optimize
+        data_type: The type of data in the dataframe (e.g., "game_info", "broadcasts", etc.)
+        
+    Returns:
+        Optimized dataframe with proper dtypes
+    """
+    if df.empty:
+        return df
+
+    # Make a copy to avoid modifying original
+    optimized_df = df.copy()
+
+    # Common ID columns to convert to integers across all dataframes
+    id_columns = {
+        "game_id": True,
+        "venue_id": True,
+        "team_id": True,
+        "player_id": True,
+        "player_1_id": True,
+        "player_2_id": True,
+        "position_id": True,
+        "play_type_id": True,
+        "sequence_number": True
+    }
+
+    # Dataframe-specific columns to convert
+    datatype_conversions = {
+        "broadcasts": {
+            # No specific additional conversions
+        },
+        "game_info": {
+            "attendance": "Int64"  # Nullable integer
+        },
+        "game_summary": {
+            # All appropriate columns already converted
+        },
+        "officials": {
+            # No additional columns to convert
+        },
+        "play_by_play": {
+            "play_id": False,  # Don't convert this to int as it may be too large
+            "clock_seconds": "Int64",
+            "score_home": "Int64",
+            "score_away": "Int64",
+            "score_value": "Int64",
+            "coordinate_x": "float64",
+            "coordinate_y": "float64",
+            "home_win_percentage": "float64",
+            "away_win_percentage": "float64",
+            "tie_percentage": "float64"
+        },
+        "player_stats": {
+            "jersey": "Int64",
+            "MIN": "float64",  # Keep as float to handle DNP/null
+            "OREB": "float64",
+            "DREB": "float64",
+            "REB": "float64",
+            "AST": "float64",
+            "STL": "float64",
+            "BLK": "float64",
+            "TO": "float64",
+            "PF": "float64",
+            "PTS": "float64",
+            # Handle original raw stat columns that contain strings like "1-3"
+            "FG": False,
+            "3PT": False,
+            "FT": False,
+            "OREB": False,
+            "DREB": False,
+            "REB": False,
+            "AST": False,
+            "STL": False,
+            "BLK": False,
+            "TO": False,
+            "PF": False,
+            "PTS": False
+        },
+        "schedules": {
+            "season": "Int64",
+            # All other important columns are handled by common ID columns
+        },
+        "team_stats": {
+            # Prevent inadvertent conversion of raw stats that may contain "-"
+            "FG": False,
+            "3PT": False,
+            "FT": False,
+            "PTS": "float64",
+            "REB": "float64",
+            "AST": "float64",
+            "STL": "float64",
+            "BLK": "float64",
+            "TO": "float64",
+            "TTO": "float64",
+            "ToTO": "float64",
+            "TECH": "float64",
+            "PTS OFF TO": "float64",
+            "FBPs": "float64",
+            "PIP": "float64",
+            "PF": "float64",
+            "LL": "float64",
+            "OREB": "float64",
+            "DREB": "float64"
+        },
+        "teams": {
+            "conference_id": "Int64"
+        },
+        "teams_info": {
+            "score": "Int64"
+        }
+    }
+
+    # Process common ID columns
+    for col in id_columns:
+        if col in optimized_df.columns:
+            try:
+                # If column contains strings that look like integers, convert to Int64 (nullable integer)
+                if optimized_df[col].dtype == 'object' and id_columns[col]:
+                    # Check if all non-null values can be converted to integers
+                    non_null_values = optimized_df[col].dropna()
+                    if len(non_null_values) > 0:
+                        try:
+                            # Try converting to integers
+                            optimized_df[col] = pd.to_numeric(optimized_df[col], errors='coerce').astype('Int64')
+                            logger.debug(f"Converted {col} to Int64 in {data_type}")
+                        except Exception as e:
+                            # If conversion fails, keep as object
+                            logger.debug(f"Could not convert {col} to Int64 in {data_type}: {str(e)}")
+            except Exception as e:
+                logger.warning(f"Error optimizing column {col} in {data_type}: {str(e)}")
+
+    # Process dataframe-specific conversions
+    if data_type in datatype_conversions:
+        for col, dtype in datatype_conversions[data_type].items():
+            if col in optimized_df.columns and dtype:
+                try:
+                    # Convert to specified dtype
+                    if dtype == "Int64":
+                        optimized_df[col] = pd.to_numeric(optimized_df[col], errors='coerce').astype('Int64')
+                    else:
+                        # For float conversions, ensure NaNs are preserved
+                        if dtype == "float64":
+                            optimized_df[col] = pd.to_numeric(optimized_df[col], errors='coerce')
+                        else:
+                            optimized_df[col] = optimized_df[col].astype(dtype)
+                except Exception as e:
+                    logger.warning(f"Error converting {col} to {dtype} in {data_type}: {str(e)}")
+            elif col in optimized_df.columns and dtype is False:
+                # Explicitly skip conversion for this column
+                logger.debug(f"Skipping conversion for {col} in {data_type} as requested")
+
+    # Special handling for player_stats to ensure DNP players have proper null values
+    if data_type == "player_stats":
+        # If dnp is True, ensure all stat columns are set to NaN
+        if "dnp" in optimized_df.columns:
+            stat_columns = [
+                "MIN", "FG_MADE", "FG_ATT", "FG_PCT", "3PT_MADE", "3PT_ATT", "3PT_PCT", "FT_MADE", "FT_ATT", "FT_PCT",
+                "OREB", "DREB", "REB", "AST", "STL", "BLK", "TO", "PF", "PTS"
+            ]
+
+            for col in stat_columns:
+                if col in optimized_df.columns:
+                    # Set stats to NaN where dnp is True
+                    dnp_mask = optimized_df["dnp"] == True
+                    if dnp_mask.any():
+                        optimized_df.loc[dnp_mask, col] = np.nan
+                        logger.debug(f"Set {col} to NaN for {dnp_mask.sum()} DNP players in {data_type}")
+
+    return optimized_df
+
+
 def process_all_games(season: int, max_workers: int = 4, force: bool = False) -> Dict[str, pd.DataFrame]:
     """
     Process all games for a specific season.
@@ -1003,6 +1234,9 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
     } for r in results]
     summary_df = pd.DataFrame(data)
 
+    # Optimize the summary dataframe
+    summary_df = optimize_dataframe_dtypes(summary_df, "game_summary")
+
     # Ensure directories exist
     csv_season_dir = get_csv_season_dir(season)
     parquet_season_dir = get_parquet_season_dir(season)
@@ -1020,22 +1254,14 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
             try:
                 # Concatenate all dataframes for this data type
                 combined_df = pd.concat(dataframes, ignore_index=True)
+
+                # Optimize datatypes
+                combined_df = optimize_dataframe_dtypes(combined_df, data_type)
+
                 consolidated_dfs[data_type] = combined_df
 
                 # Save as CSV and Parquet
                 combined_df.to_csv(csv_season_dir / f"{data_type}.csv", index=False)
-
-                # Fix data type issues before saving to parquet
-                if data_type == "teams_info" and not combined_df.empty:
-                    # Convert score column to numeric, coercing errors to NaN
-                    combined_df['score'] = pd.to_numeric(combined_df['score'], errors='coerce')
-
-                if data_type == "play_by_play" and not combined_df.empty:
-                    # Convert coordinate columns to numeric, coercing errors to NaN
-                    combined_df['coordinate_x'] = pd.to_numeric(combined_df['coordinate_x'], errors='coerce')
-                    combined_df['coordinate_y'] = pd.to_numeric(combined_df['coordinate_y'], errors='coerce')
-
-                # Now save to parquet with fixed data types
                 combined_df.to_parquet(parquet_season_dir / f"{data_type}.parquet", index=False)
 
                 logger.info(f"Saved consolidated {data_type} data with {len(combined_df)} records for season {season}")
@@ -1125,6 +1351,9 @@ def process_schedules(season: int, force: bool = False) -> pd.DataFrame:
     schedules_df = pd.DataFrame(all_games)
 
     if not schedules_df.empty:
+        # Optimize datatypes
+        schedules_df = optimize_dataframe_dtypes(schedules_df, "schedules")
+
         # Save to CSV and Parquet in the season directory
         os.makedirs(csv_season_dir, exist_ok=True)
 
