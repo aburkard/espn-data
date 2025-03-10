@@ -1494,7 +1494,18 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
                     # Filter out empty DataFrames to avoid FutureWarning
                     non_empty_dfs = [df for df in df_list if not df.empty]
                     if non_empty_dfs:
-                        combined_df = pd.concat(non_empty_dfs, ignore_index=True)
+                        # Filter out all-NA columns from each DataFrame before concatenation
+                        cleaned_dfs = []
+                        for df in non_empty_dfs:
+                            # Drop columns where all values are NA
+                            df_cleaned = df.dropna(axis=1, how='all')
+                            if not df_cleaned.empty:
+                                cleaned_dfs.append(df_cleaned)
+
+                        if cleaned_dfs:
+                            combined_df = pd.concat(cleaned_dfs, ignore_index=True)
+                        else:
+                            combined_df = pd.DataFrame()
                     else:
                         combined_df = pd.DataFrame()
 
