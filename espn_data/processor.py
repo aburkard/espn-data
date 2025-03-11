@@ -1106,7 +1106,10 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
         return result
 
     except Exception as e:
-        logger.error(f"Error processing game {game_id} in season {season}: {str(e)}")
+        error_msg = f"Error processing game {game_id} in season {season}: {str(e)}"
+        logger.error(error_msg)
+        # Log stack trace for debugging
+        logger.debug(f"Stack trace for game {game_id} error:", exc_info=True)
         return {"game_id": game_id, "season": season, "processed": False, "error": str(e)}
 
 
@@ -1516,12 +1519,19 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
                 if not df.empty:
                     game_results[data_type].append(df)
         else:
+            # Get error message if present
+            error_msg = result.get("error", "Unknown error")
+
+            # Log the error for debugging
+            if error_msg != "Unknown error":
+                logger.debug(f"Game {result['game_id']} processing error: {error_msg}")
+
             # Add error record to game summary
             game_results["game_summary"].append({
                 "game_id": result["game_id"],
                 "season": result.get("season", season),
                 "processed": False,
-                "error": result.get("error", "Unknown error")
+                "error": error_msg
             })
 
     # Initialize game_summary as a special case
@@ -1576,8 +1586,31 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
                         combined_df = pd.concat(df_objects, ignore_index=True)
                         # Ensure error column is properly typed to handle None values
                         if 'error' in combined_df.columns:
+                            # Log stats on error column before cleaning
+                            null_count = combined_df['error'].isna().sum()
+                            empty_count = (combined_df['error'] == '').sum()
+
+                            logger.debug(
+                                f"Game summary error stats before cleaning - null: {null_count}, empty string: {empty_count}"
+                            )
+
+                            # Count games with actual errors
+                            has_error = (~combined_df['error'].isna()) & (combined_df['error'] != '')
+                            error_count = has_error.sum()
+
+                            if error_count > 0:
+                                logger.debug(f"Found {error_count} games with error messages")
+                                # Log a few examples
+                                error_examples = combined_df[has_error].head(3)
+                                for _, row in error_examples.iterrows():
+                                    logger.debug(f"Error example - Game {row['game_id']}: {row['error']}")
+
                             # Convert empty strings to None
                             combined_df['error'] = combined_df['error'].replace('', None)
+
+                            # Log stats after cleaning
+                            null_count_after = combined_df['error'].isna().sum()
+                            logger.debug(f"Game summary error null count after cleaning: {null_count_after}")
                     else:
                         combined_df = pd.DataFrame()
                 else:
@@ -1625,6 +1658,45 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
     for data_type, df in combined_dfs.items():
         if not df.empty:
             try:
+                # Special handling for game_summary to include any failed games that aren't in the dataframe
+                if data_type == "game_summary":
+                    # Get the schedules dataframe to ensure we have all games
+                    try:
+                        schedules_file = get_parquet_season_dir(season) / "schedules.parquet"
+                        if os.path.exists(schedules_file):
+                            schedules_df = pd.read_parquet(schedules_file)
+                            if not schedules_df.empty and 'game_id' in schedules_df.columns:
+                                # Get list of all scheduled game IDs
+                                all_scheduled_game_ids = set(schedules_df['game_id'].unique())
+                                # Get list of all game IDs in the current dataframe
+                                processed_game_ids = set(df['game_id'].unique())
+                                # Find missing games
+                                missing_game_ids = all_scheduled_game_ids - processed_game_ids
+
+                                if missing_game_ids:
+                                    logger.warning(
+                                        f"Found {len(missing_game_ids)} games in schedule that aren't in game_summary")
+                                    # Create records for missing games
+                                    missing_records = []
+                                    for game_id in missing_game_ids:
+                                        # Try to find the game in the schedule
+                                        game_info = schedules_df[schedules_df['game_id'] == game_id].iloc[
+                                            0] if not schedules_df[schedules_df['game_id'] == game_id].empty else {}
+                                        missing_records.append({
+                                            "game_id": game_id,
+                                            "season": season,
+                                            "processed": False,
+                                            "error": "Game failed to process completely"
+                                        })
+                                        logger.warning(f"Added missing game to summary: {game_id}")
+
+                                    # Add missing records to dataframe
+                                    df = pd.concat([df, pd.DataFrame(missing_records)], ignore_index=True)
+                                    logger.info(
+                                        f"Updated game_summary to include {len(missing_game_ids)} missing games")
+                    except Exception as e:
+                        logger.error(f"Error trying to reconcile game_summary with schedules: {str(e)}")
+
                 # Save as CSV
                 csv_path = csv_season_dir / f"{data_type}.csv"
                 df.to_csv(csv_path, index=False)
@@ -1809,15 +1881,26 @@ def process_season_data(season: int, max_workers: int = 4, force: bool = False) 
                 if dataset_name == 'game_summary':
                     # Count games where processed=True as successful
                     success_count = len(df[df['processed'] == True]) if 'processed' in df.columns else 0
+                    # Count games where error is not None as error games
+                    error_games = df[df['error'].notna()] if 'error' in df.columns else pd.DataFrame()
+                    error_count = len(error_games)
 
-        # Ensure error_count is never negative
-        error_count = max(0, total_games - success_count)
+                    # If error_count is 0 but success_count < total_games, calculate as before
+                    if error_count == 0 and success_count < total_games:
+                        error_count = total_games - success_count
+                        logger.warning(
+                            f"Found discrepancy: {success_count} successful games out of {total_games} total, but no error messages found."
+                        )
 
-        # If success_count > total_games, log a warning as this shouldn't happen
-        if success_count > total_games:
-            logger.warning(
-                f"More games successfully processed ({success_count}) than were in schedule ({total_games}) for season {season}. Check for data inconsistency."
-            )
+                    # Log detailed error information for debugging
+                    if not error_games.empty:
+                        logger.warning(f"Season {season} games with errors ({len(error_games)}):")
+                        for _, row in error_games.iterrows():
+                            logger.warning(f"Game {row['game_id']} error: {row['error']}")
+                    else:
+                        logger.warning(
+                            f"Season {season} has {error_count} games with errors, but no error details were found in the dataframe."
+                        )
     except Exception as e:
         logger.error(f"Error processing games for season {season}: {e}")
         error_count = total_games
