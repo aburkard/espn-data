@@ -1508,7 +1508,7 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
                 "game_id": result["game_id"],
                 "season": result.get("season", season),
                 "processed": True,
-                "error": ""
+                "error": None
             })
 
             # Add each data type to its respective consolidated list
@@ -1544,7 +1544,16 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
                 result = future.result()
                 process_game_result(result)
             except Exception as e:
-                logger.error(f"Error processing game result: {str(e)}")
+                error_msg = f"Error processing game result: {str(e)}"
+                logger.error(error_msg)
+                # Add an error record for the failed game
+                # Note: We can't know which game_id failed here, so we create a generic error record
+                game_results["game_summary"].append({
+                    "game_id": "error",
+                    "season": season,
+                    "processed": False,
+                    "error": error_msg
+                })
 
     # Create combined DataFrames
     combined_dfs = {}
@@ -1559,10 +1568,16 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
                         if isinstance(item, pd.DataFrame):
                             df_objects.append(item)
                         elif isinstance(item, dict):
-                            df_objects.append(pd.DataFrame([item]))
+                            # Create DataFrame with correct handling of None for error field
+                            item_df = pd.DataFrame([item])
+                            df_objects.append(item_df)
 
                     if df_objects:
                         combined_df = pd.concat(df_objects, ignore_index=True)
+                        # Ensure error column is properly typed to handle None values
+                        if 'error' in combined_df.columns:
+                            # Convert empty strings to None
+                            combined_df['error'] = combined_df['error'].replace('', None)
                     else:
                         combined_df = pd.DataFrame()
                 else:
