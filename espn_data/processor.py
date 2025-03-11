@@ -474,13 +474,14 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
     return game_details
 
 
-def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
+def process_game_data(game_id: str, season: int, verbose: bool = False) -> Dict[str, Any]:
     """
     Process detailed data for a game.
     
     Args:
         game_id: ESPN game ID
         season: Season year
+        verbose: If True, log detailed information about the game processing
         
     Returns:
         Dictionary with processing results
@@ -498,7 +499,7 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
         if not data_path.exists():
             logger.warning(f"Game data for {game_id} in season {season} not found. Fetching it now.")
             # Don't pass gender here, as it will call set_gender and override our setting
-            game_data = get_game_data(game_id, season)
+            game_data = get_game_data(game_id, season, verbose_cache=False)
         else:
             game_data = load_json(data_path)
 
@@ -1101,7 +1102,10 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
             }
         }
 
-        logger.info(f"Successfully processed data for game {game_id} in season {season}")
+        if verbose:
+            logger.info(f"Successfully processed data for game {game_id} in season {season}")
+        else:
+            logger.debug(f"Successfully processed data for game {game_id} in season {season}")
 
         return result
 
@@ -1113,25 +1117,32 @@ def process_game_data(game_id: str, season: int) -> Dict[str, Any]:
         return {"game_id": game_id, "season": season, "processed": False, "error": str(e)}
 
 
-def process_game_with_season(args):
+def process_game_with_season(game_id, season, force, gender=None, verbose=False):
     """
-    Helper function to unpack arguments for process_game_data.
+    Helper function to process a game with season information.
     
     Args:
-        args: Tuple of (game_id, season, force, gender)
+        game_id: ESPN game ID
+        season: Season year
+        force: Whether to force reprocessing
+        gender: Either "mens" or "womens" (if None, uses current setting)
+        verbose: If True, log detailed information
     
     Returns:
         Result of process_game_data with processed data structures
     """
-    if len(args) == 4:
-        game_id, season, force, gender = args
-        # Ensure correct gender in child process
-        set_gender(gender)
-    else:
-        game_id, season, force = args
+    try:
+        # Ensure correct gender in child process if provided
+        if gender:
+            set_gender(gender)
 
-    # Note: force parameter is not used by process_game_data
-    return process_game_data(game_id, season)
+        # Note: force parameter is not used by process_game_data
+        return process_game_data(game_id, season, verbose)
+    except Exception as e:
+        # This helps debug any errors
+        logger.error(f"Error in process_game_with_season for game {game_id}: {e}")
+        # Return a minimal valid result
+        return {"game_id": game_id, "season": season, "processed": False, "error": f"Error: {e}"}
 
 
 def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
@@ -1457,7 +1468,10 @@ def remove_redundant_columns(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
     return result_df
 
 
-def process_all_games(season: int, max_workers: int = 4, force: bool = False) -> Dict[str, pd.DataFrame]:
+def process_all_games(season: int,
+                      max_workers: int = 4,
+                      force: bool = False,
+                      verbose: bool = False) -> Dict[str, pd.DataFrame]:
     """
     Process all games for a specific season.
     
@@ -1474,6 +1488,7 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
         season: Season year to process
         max_workers: Maximum number of concurrent processes
         force: If True, force reprocessing even if processed files exist
+        verbose: If True, log detailed information including each processed game
         
     Returns:
         Dictionary with dataframes for this season
@@ -1545,7 +1560,8 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False) ->
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         # Submit all jobs
         futures = [
-            executor.submit(process_game_with_season, (game_id, season, force, current_gender)) for game_id in game_ids
+            executor.submit(process_game_with_season, game_id, season, force, current_gender, verbose)
+            for game_id in game_ids
         ]
 
         # Process results as they complete
@@ -1826,7 +1842,10 @@ def process_schedules(season: int, force: bool = False) -> pd.DataFrame:
     return schedules_df
 
 
-def process_season_data(season: int, max_workers: int = 4, force: bool = False) -> Dict[str, Any]:
+def process_season_data(season: int,
+                        max_workers: int = 4,
+                        force: bool = False,
+                        verbose: bool = False) -> Dict[str, Any]:
     """
     Process all data for a specific season.
     
@@ -1834,6 +1853,7 @@ def process_season_data(season: int, max_workers: int = 4, force: bool = False) 
         season: The season to process
         max_workers: Maximum number of parallel worker processes
         force: If True, force reprocessing even if processed files exist
+        verbose: If True, log detailed information including each processed game
         
     Returns:
         Dictionary with processing statistics
@@ -1873,7 +1893,7 @@ def process_season_data(season: int, max_workers: int = 4, force: bool = False) 
     error_count = 0
 
     try:
-        processed_data = process_all_games(season, max_workers=max_workers, force=force)
+        processed_data = process_all_games(season, max_workers=max_workers, force=force, verbose=verbose)
 
         # Count successful and failed games
         for dataset_name, df in processed_data.items():
@@ -1913,7 +1933,8 @@ def process_all_data(seasons: Optional[List[int]] = None,
                      max_workers: int = 4,
                      gender: str = None,
                      game_ids: Optional[List[str]] = None,
-                     force: bool = False) -> None:
+                     force: bool = False,
+                     verbose: bool = False) -> None:
     """
     Process all data for the specified seasons.
 
@@ -1923,6 +1944,7 @@ def process_all_data(seasons: Optional[List[int]] = None,
         gender: Either "mens" or "womens" (if None, uses current setting)
         game_ids: Optional list of specific game IDs to process
         force: If True, force reprocessing even if processed files exist
+        verbose: If True, log detailed information including each processed game
     """
     if gender:
         set_gender(gender)
@@ -2029,7 +2051,7 @@ def process_all_data(seasons: Optional[List[int]] = None,
                     summary['total_games'] += len(game_results)
             else:
                 # Process the entire season
-                result = process_season_data(season, max_workers, force)
+                result = process_season_data(season, max_workers, force, verbose)
 
                 # Update summary with this season's data
                 summary["processed_seasons"] += 1

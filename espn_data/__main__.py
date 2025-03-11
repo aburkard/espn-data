@@ -66,6 +66,11 @@ async def main() -> None:
                         action="store_true",
                         help="Force re-scraping or re-processing of data, ignoring cached files")
 
+    # Add verbose cache option
+    parser.add_argument("--verbose",
+                        action="store_true",
+                        help="Log detailed information (e.g., each cached or processed game)")
+
     args = parser.parse_args()
 
     # Configure logging based on command-line argument
@@ -97,7 +102,8 @@ async def main() -> None:
                          max_workers=args.max_workers,
                          gender=args.gender,
                          force=args.force,
-                         game_ids=args.game_ids)
+                         game_ids=args.game_ids,
+                         verbose=args.verbose)
     elif args.scrape:
         # Only run the scraper
         logger.info(f"Running data scraper for {get_current_gender()} basketball")
@@ -107,26 +113,27 @@ async def main() -> None:
                               team_id=args.team_id,
                               gender=args.gender,
                               game_ids=args.game_ids,
-                              force=args.force)
+                              force=args.force,
+                              verbose=args.verbose)
     else:
         # Run the full workflow
-        logger.info(f"Running full workflow (scrape + process) for {get_current_gender()} basketball")
-
-        # Step 1: Scrape data
+        logger.info(f"Running full workflow for {get_current_gender()} basketball")
         await scrape_all_data(concurrency=args.concurrency,
                               delay=args.delay,
                               seasons=seasons,
                               team_id=args.team_id,
                               gender=args.gender,
                               game_ids=args.game_ids,
-                              force=args.force)
+                              force=args.force,
+                              verbose=args.verbose)
 
         # Step 2: Process data
         process_all_data(seasons=seasons,
                          max_workers=args.max_workers,
                          gender=args.gender,
                          game_ids=args.game_ids,
-                         force=args.force)
+                         force=args.force,
+                         verbose=args.verbose)
 
     logger.info("Workflow completed successfully")
 

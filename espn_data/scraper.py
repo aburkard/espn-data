@@ -173,15 +173,20 @@ def get_team_schedule(team_id: str,
         return {"events": []}
 
 
-def get_game_data(game_id: str, season: int, gender: str = None, force: bool = False) -> Dict[str, Any]:
+def get_game_data(game_id: str,
+                  season: int,
+                  gender: str = None,
+                  force: bool = False,
+                  verbose_cache: bool = True) -> Dict[str, Any]:
     """
-    Get detailed data for a specific game.
+    Get ESPN game data for a specific game.
     
     Args:
         game_id: ESPN game ID
-        season: Season year
+        season: Season year (e.g., 2022 for 2021-22 season)
         gender: Either "mens" or "womens" (if None, uses current setting)
         force: If True, force refetch even if data exists
+        verbose_cache: If True, log when using cached data
         
     Returns:
         Game data dictionary
@@ -198,7 +203,8 @@ def get_game_data(game_id: str, season: int, gender: str = None, force: bool = F
     output_file = games_dir / f"{game_id}.json"
 
     if not force and output_file.exists():
-        logger.info(f"Using cached data for game {game_id}")
+        if verbose_cache:
+            logger.info(f"Using cached data for game {game_id}")
         return load_json(output_file)
 
     logger.info(f"Fetching data for game {game_id}")
@@ -230,16 +236,18 @@ async def fetch_game_async(session: aiohttp.ClientSession,
                            game_id: str,
                            season: int,
                            gender: str = None,
-                           force: bool = False) -> Tuple[str, Dict[str, Any], int]:
+                           force: bool = False,
+                           verbose_cache: bool = True) -> Tuple[str, Dict[str, Any], int]:
     """
-    Asynchronously fetch game data.
+    Fetch ESPN game data asynchronously.
     
     Args:
         session: aiohttp client session
         game_id: ESPN game ID
-        season: Season year
+        season: Season year (e.g., 2022 for 2021-22 season)
         gender: Either "mens" or "womens" (if None, uses current setting)
         force: If True, force refetch even if data exists
+        verbose_cache: If True, log when using cached data
         
     Returns:
         Tuple of (game_id, game_data, HTTP status code)
@@ -255,7 +263,8 @@ async def fetch_game_async(session: aiohttp.ClientSession,
     output_file = games_dir / f"{game_id}.json"
 
     if not force and output_file.exists():
-        logger.info(f"Using cached data for game {game_id}")
+        if verbose_cache:
+            logger.info(f"Using cached data for game {game_id}")
         return game_id, load_json(output_file), 200
 
     url = get_game_data_url().format(game_id=game_id)
@@ -287,7 +296,8 @@ async def fetch_games_batch(game_data_list: List[Tuple[str, int]],
                             concurrency: int = DEFAULT_CONCURRENCY,
                             delay: float = DEFAULT_DELAY,
                             gender: str = None,
-                            force: bool = False) -> Dict[str, Dict[str, Any]]:
+                            force: bool = False,
+                            verbose_cache: bool = True) -> Dict[str, Dict[str, Any]]:
     """
     Fetch and save a batch of games in parallel.
     
@@ -297,6 +307,7 @@ async def fetch_games_batch(game_data_list: List[Tuple[str, int]],
         delay: Delay between requests in seconds
         gender: Either "mens" or "womens" (if None, uses current setting)
         force: If True, force refetch even if data exists
+        verbose_cache: If True, log when using cached data
         
     Returns:
         Dictionary mapping game_ids to game data
@@ -304,10 +315,34 @@ async def fetch_games_batch(game_data_list: List[Tuple[str, int]],
     if gender:
         set_gender(gender)
 
+    # Pre-filter already cached games if not forcing refetch
+    if not force:
+        filtered_list = []
+        cached_games = {}
+
+        for game_id, season in game_data_list:
+            games_dir = get_games_dir(season)
+            output_file = games_dir / f"{game_id}.json"
+
+            if output_file.exists():
+                # Load cached data without logging each one
+                cached_games[game_id] = load_json(output_file)
+            else:
+                filtered_list.append((game_id, season))
+
+        if cached_games:
+            logger.info(f"Using cached data for {len(cached_games)} games")
+
+        # If all games are cached, return early
+        if not filtered_list:
+            return cached_games
+
+        game_data_list = filtered_list
+
     logger.info(f"Fetching batch of {len(game_data_list)} games with concurrency {concurrency}")
 
     # Map for quick lookup and results storage
-    games_map = {}
+    games_map = {} if force else cached_games
 
     # Create asyncio semaphore to limit concurrency
     semaphore = asyncio.Semaphore(concurrency)
@@ -316,7 +351,12 @@ async def fetch_games_batch(game_data_list: List[Tuple[str, int]],
         async with semaphore:
             if delay > 0:
                 await asyncio.sleep(random.uniform(0, delay))
-            return await fetch_game_async(session, game_id, season, gender=gender, force=force)
+            return await fetch_game_async(session,
+                                          game_id,
+                                          season,
+                                          gender=gender,
+                                          force=force,
+                                          verbose_cache=verbose_cache)
 
     async with aiohttp.ClientSession() as session:
         tasks = []
@@ -383,7 +423,8 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
                           team_id: Optional[str] = None,
                           gender: str = None,
                           game_ids: Optional[List[str]] = None,
-                          force: bool = False) -> None:
+                          force: bool = False,
+                          verbose: bool = False) -> None:
     """
     Scrape all ESPN college basketball data.
     
@@ -395,6 +436,7 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
         gender: Either "mens" or "womens" (if None, uses current setting)
         game_ids: Optional list of specific game IDs to scrape
         force: If True, force refetch even if data exists
+        verbose: If True, log detailed information (e.g., each cached game)
     """
     if gender:
         set_gender(gender)
@@ -490,7 +532,7 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
         for i in range(0, len(game_ids_list), batch_size):
             batch = game_ids_list[i:i + batch_size]
             logger.info(f"Processing batch {i//batch_size + 1}/{math.ceil(len(game_ids_list)/batch_size)}")
-            await fetch_games_batch(batch, concurrency, delay, gender, force)
+            await fetch_games_batch(batch, concurrency, delay, gender, force, verbose)
 
     logger.info("Data scraping complete")
 
