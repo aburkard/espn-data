@@ -175,27 +175,28 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
     # Extract season information
     if 'season' in game_data and isinstance(game_data['season'], dict):
         game_details["season"] = game_data['season'].get('year', None)
+    elif 'season' in game_data.get('header', {}) and isinstance(game_data['header'], dict):
+        game_details["season"] = game_data['header'].get('season', {}).get('year', None)
+
+    # Extract boxscore availability information
+    game_details["boxscore_source"] = game_data.get('header', {}).get('competitions', [{}])[0].get('boxscoreSource')
+    game_details["boxscore_available"] = game_data.get('header', {}).get('competitions',
+                                                                         [{}])[0].get('boxscoreAvailable')
+    game_details["play_by_play_source"] = game_data.get('header', {}).get('competitions',
+                                                                          [{}])[0].get('playByPlaySource')
 
     # Extract date information
     if 'date' in game_data:
         game_details["date"] = game_data['date']
 
     # Extract venue information
-    if 'competitions' in game_data['header'] and isinstance(game_data['header']['competitions'], list) and len(
-            game_data['header']['competitions']) > 0:
-        competition = game_data['header']['competitions'][0]
-        if 'venue' in competition and isinstance(competition['venue'], dict):
-            venue_data = competition['venue']
-            game_details["venue_id"] = venue_data.get('id', None)
-            game_details["venue"] = venue_data.get('fullName', None)
-            game_details["venue_name"] = venue_data.get('fullName', None)
-
-            if 'address' in venue_data and isinstance(venue_data['address'], dict):
-                address = venue_data['address']
-                city = address.get('city', None)
-                state = address.get('state', None)
-                game_details["venue_city"] = city
-                game_details["venue_state"] = state
+    venue_data = game_data.get('gameInfo', {}).get('venue', {})
+    if venue_data:
+        game_details["venue_id"] = venue_data.get('id', None)
+        game_details["venue_name"] = venue_data.get('fullName', None)
+        address = venue_data.get('address', {})
+        game_details["venue_city"] = address.get('city', None)
+        game_details["venue_state"] = address.get('state', None)
 
     # Extract attendance information
     if 'gameInfo' in game_data and 'attendance' in game_data['gameInfo']:

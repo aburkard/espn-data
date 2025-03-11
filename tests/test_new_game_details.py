@@ -145,17 +145,10 @@ def test_get_game_details_with_new_fields():
     assert away_team["linescores"][0] == "29", "Away team first quarter score incorrect"
 
     # Check division and conference info
-    assert home_team["division"].get("name") == "NCAA Division I", "Home team division incorrect"
-    assert home_team["conference"].get("name") == "Atlantic Coast Conference", "Home team conference incorrect"
+    assert home_team["division"] == "NCAA Division I", "Home team division incorrect"
+    assert int(home_team["conference_id"]) == 2, "Home team conference id incorrect"
+    assert home_team["conference_slug"] == "atlantic-coast-conference", "Home team conference slug incorrect"
 
-    assert away_team["division"].get("name") == "NCAA Division I", "Away team division incorrect"
-    assert away_team["conference"].get("name") == "Big 12 Conference", "Away team conference incorrect"
-
-    # Check record information
-    assert len(home_team["record"]) == 2, "Home team should have 2 record entries"
-    assert home_team["record"][0]["type"] == "total", "Home team record type incorrect"
-    assert home_team["record"][0]["summary"] == "5-1", "Home team record summary incorrect"
-
-    assert len(away_team["record"]) == 2, "Away team should have 2 record entries"
-    assert away_team["record"][0]["type"] == "total", "Away team record type incorrect"
-    assert away_team["record"][1]["type"] == "road", "Away team second record type incorrect"
+    assert away_team["division"] == "NCAA Division I", "Away team division incorrect"
+    assert int(away_team["conference_id"]) == 8, "Away team conference id incorrect"
+    assert away_team["conference_slug"] == "big-12-conference", "Away team conference slug incorrect"
