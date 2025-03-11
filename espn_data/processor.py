@@ -114,6 +114,43 @@ def convert_clock_to_seconds(clock_str):
         return None
 
 
+def get_broadcasts(game_data: Dict[str, Any]) -> List[Dict[str, Any]]:
+    """Get broadcasts from game data."""
+    return game_data.get('broadcasts', []) or game_data.get('header', {}).get('competitions', [{}])[0].get(
+        'broadcasts', []) or game_data.get('gameInfo', {}).get('broadcasts', [])
+
+
+def get_primary_broadcast(game_data: Dict[str, Any]) -> Dict[str, Any]:
+    """Get the primary broadcast from game data."""
+    broadcasts = get_broadcasts(game_data)
+
+    # If no broadcasts, return None
+    if not broadcasts:
+        return None
+
+    # 1. A broadcast with type TV and market National
+    for broadcast in broadcasts:
+        market_type = broadcast.get('market', {}).get('type', '').lower()
+        type_name = broadcast.get('type', {}).get('shortName', '').lower()
+        if type_name == 'tv' and market_type == 'national':
+            return broadcast
+
+    # 2. Any TV broadcast
+    for broadcast in broadcasts:
+        type_name = broadcast.get('type', {}).get('shortName', '').lower()
+        if type_name == 'tv':
+            return broadcast
+
+    # 3. Any National broadcast
+    for broadcast in broadcasts:
+        market_type = broadcast.get('market', {}).get('type', '').lower()
+        if market_type == 'national':
+            return broadcast
+
+    # 4. The first broadcast in the array
+    return broadcasts[0]
+
+
 def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[str, Any]:
     """
     Extract key game details like date, venue, etc. from game data.
@@ -168,6 +205,7 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
         "completed": None,
         "broadcast": None,
         "broadcast_market": None,
+        "broadcast_type": None,
         "conference": None,
         "teams": []
     }
@@ -241,135 +279,11 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
             game_details["format"] = competition['format']
 
     # Extract broadcast information
-    broadcasts_found = False
-
-    # First check in the direct broadcasts field
-    if 'broadcasts' in game_data and isinstance(game_data['broadcasts'], list) and len(game_data['broadcasts']) > 0:
-        broadcasts_found = True
-        for broadcast in game_data['broadcasts']:
-            if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
-                # Handle market as an object with type property
-                market_obj = broadcast.get('market', {})
-                market_type = market_obj.get('type', None)
-
-                if isinstance(market_type, str) and market_type.lower() == 'national':
-                    # Make sure media is a dictionary
-                    media = broadcast.get('media', {})
-                    if isinstance(media, dict):
-                        game_details["broadcast"] = media.get('shortName', None)
-                    elif isinstance(media, str):
-                        game_details["broadcast"] = media
-                    else:
-                        game_details["broadcast"] = None
-                    # Set the market type
-                    if market_type:
-                        game_details["broadcast_market"] = market_type
-                    break
-
-        # If no national broadcast found, use the first available one
-        if not game_details["broadcast"] and len(game_data['broadcasts']) > 0:
-            if isinstance(game_data['broadcasts'][0], dict) and 'media' in game_data['broadcasts'][0]:
-                media = game_data['broadcasts'][0].get('media', {})
-                if isinstance(media, dict):
-                    game_details["broadcast"] = media.get('shortName', None)
-                elif isinstance(media, str):
-                    game_details["broadcast"] = media
-                else:
-                    game_details["broadcast"] = None
-
-                market_obj = game_data['broadcasts'][0].get('market', {})
-                market_type = market_obj.get('type', None)
-
-                # Set the market type
-                if isinstance(market_type, str) and market_type:
-                    game_details["broadcast_market"] = market_type
-
-    # Check in header.competitions[0].broadcasts
-    if not broadcasts_found and 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
-            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
-        competition = game_data['header']['competitions'][0]
-        if 'broadcasts' in competition and isinstance(competition['broadcasts'], list) and len(
-                competition['broadcasts']) > 0:
-            broadcasts_found = True
-            for broadcast in competition['broadcasts']:
-                if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
-                    # Handle market as an object with type property
-                    market_obj = broadcast.get('market', {})
-                    market_type = market_obj.get('type', None)
-
-                    if isinstance(market_type, str) and market_type.lower() == 'national':
-                        # Make sure media is a dictionary or string
-                        media = broadcast.get('media', {})
-                        if isinstance(media, dict):
-                            game_details["broadcast"] = media.get('shortName', None)
-                        elif isinstance(media, str):
-                            game_details["broadcast"] = media
-                        else:
-                            game_details["broadcast"] = None
-                        # Set the market type
-                        if market_type:
-                            game_details["broadcast_market"] = market_type
-                        break
-
-            # If no national broadcast found, use the first available one
-            if not game_details["broadcast"] and len(competition['broadcasts']) > 0:
-                if isinstance(competition['broadcasts'][0], dict) and 'media' in competition['broadcasts'][0]:
-                    media = competition['broadcasts'][0].get('media', {})
-                    if isinstance(media, dict):
-                        game_details["broadcast"] = media.get('shortName', None)
-                    elif isinstance(media, str):
-                        game_details["broadcast"] = media
-                    else:
-                        game_details["broadcast"] = None
-
-                    market_obj = competition['broadcasts'][0].get('market', {})
-                    market_type = market_obj.get('type', None)
-
-                    # Set the market type
-                    if isinstance(market_type, str) and market_type:
-                        game_details["broadcast_market"] = market_type
-
-    # Check in gameInfo.broadcast
-    if not broadcasts_found and 'gameInfo' in game_data and 'broadcasts' in game_data['gameInfo'] and isinstance(
-            game_data['gameInfo']['broadcasts'], list) and len(game_data['gameInfo']['broadcasts']) > 0:
-        for broadcast in game_data['gameInfo']['broadcasts']:
-            if isinstance(broadcast, dict) and 'market' in broadcast and 'media' in broadcast:
-                # Handle market as an object with type property
-                market_obj = broadcast.get('market', {})
-                market_type = market_obj.get('type', None)
-
-                if isinstance(market_type, str) and market_type.lower() == 'national':
-                    # Make sure media is a dictionary or string
-                    media = broadcast.get('media', {})
-                    if isinstance(media, dict):
-                        game_details["broadcast"] = media.get('shortName', None)
-                    elif isinstance(media, str):
-                        game_details["broadcast"] = media
-                    else:
-                        game_details["broadcast"] = None
-                    # Set the market type
-                    if market_type:
-                        game_details["broadcast_market"] = market_type
-                    break
-
-        # If no national broadcast found, use the first available one
-        if not game_details["broadcast"] and len(game_data['gameInfo']['broadcasts']) > 0:
-            if isinstance(game_data['gameInfo']['broadcasts'][0],
-                          dict) and 'media' in game_data['gameInfo']['broadcasts'][0]:
-                media = game_data['gameInfo']['broadcasts'][0].get('media', {})
-                if isinstance(media, dict):
-                    game_details["broadcast"] = media.get('shortName', None)
-                elif isinstance(media, str):
-                    game_details["broadcast"] = media
-                else:
-                    game_details["broadcast"] = None
-
-                market_obj = game_data['gameInfo']['broadcasts'][0].get('market', {})
-                market_type = market_obj.get('type', None)
-
-                # Set the market type
-                if isinstance(market_type, str) and market_type:
-                    game_details["broadcast_market"] = market_type
+    broadcast = get_primary_broadcast(game_data)
+    if broadcast:
+        game_details["broadcast"] = broadcast.get('media', {}).get('shortName', None)
+        game_details["broadcast_market"] = broadcast.get('market', {}).get('type', None)
+        game_details["broadcast_type"] = broadcast.get('type', {}).get('shortName', None)
 
     # Extract conference information if available
     if 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
@@ -548,6 +462,7 @@ def process_game_data(game_id: str, season: int, verbose: bool = False) -> Dict[
                 "completed": game_details["completed"],
                 "broadcast": game_details["broadcast"],
                 "broadcast_market": game_details["broadcast_market"],
+                "broadcast_type": game_details["broadcast_type"],
                 "conference": game_details["conference"],
                 "regulation_clock": game_details.get("regulation_clock", 600.0),
                 "overtime_clock": game_details.get("overtime_clock", 300.0),
@@ -559,7 +474,7 @@ def process_game_data(game_id: str, season: int, verbose: bool = False) -> Dict[
 
             # Process officials/referees
             logger.debug(f"Game {game_id}: Processing officials data")
-            for official in game_details.get("officials", []):
+            for official in game_data.get("officials", []):
                 if official is None:
                     logger.warning(f"Game {game_id}: Found None official entry")
                     continue
@@ -576,16 +491,16 @@ def process_game_data(game_id: str, season: int, verbose: bool = False) -> Dict[
 
             # Process broadcasts data
             logger.debug(f"Game {game_id}: Processing broadcast data")
-            for broadcast in game_details.get("broadcasts", []):
+            for broadcast in get_broadcasts(game_data):
                 if broadcast is None:
                     logger.warning(f"Game {game_id}: Found None broadcast entry")
                     continue
 
                 broadcast_data = {
                     "game_id": game_id,
-                    "type": broadcast.get("type", None),
-                    "market": broadcast.get("market", None),
-                    "media": broadcast.get("media", None),
+                    "type": broadcast.get("type", {}).get("shortName", None),
+                    "market": broadcast.get("market", {}).get("type", None),
+                    "media": broadcast.get("media", {}).get("shortName", None),
                     "lang": broadcast.get("lang", None),
                     "region": broadcast.get("region", None)
                 }
