@@ -52,6 +52,12 @@ async def main() -> None:
     # Add test mode for single team
     parser.add_argument("--team-id", type=str, help="Specific team ID to scrape (for testing)")
 
+    # Add option to process specific games only
+    parser.add_argument("--game-ids",
+                        type=str,
+                        nargs="+",
+                        help="List of specific game IDs to scrape or process (e.g., 401580411 401580412)")
+
     # Add logging level option
     parser.add_argument("--debug", action="store_true", help="Enable debug logging")
 
@@ -87,7 +93,11 @@ async def main() -> None:
     if args.process:
         # Only run the processor
         logger.info(f"Running data processor for {get_current_gender()} basketball")
-        process_all_data(seasons=seasons, max_workers=args.max_workers, gender=args.gender, force=args.force)
+        process_all_data(seasons=seasons,
+                         max_workers=args.max_workers,
+                         gender=args.gender,
+                         force=args.force,
+                         game_ids=args.game_ids)
     elif args.scrape:
         # Only run the scraper
         logger.info(f"Running data scraper for {get_current_gender()} basketball")
@@ -96,6 +106,7 @@ async def main() -> None:
                               seasons=seasons,
                               team_id=args.team_id,
                               gender=args.gender,
+                              game_ids=args.game_ids,
                               force=args.force)
     else:
         # Run the full workflow
@@ -107,10 +118,15 @@ async def main() -> None:
                               seasons=seasons,
                               team_id=args.team_id,
                               gender=args.gender,
+                              game_ids=args.game_ids,
                               force=args.force)
 
         # Step 2: Process data
-        process_all_data(seasons=seasons, max_workers=args.max_workers, gender=args.gender, force=args.force)
+        process_all_data(seasons=seasons,
+                         max_workers=args.max_workers,
+                         gender=args.gender,
+                         game_ids=args.game_ids,
+                         force=args.force)
 
     logger.info("Workflow completed successfully")
 

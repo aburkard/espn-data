@@ -382,6 +382,7 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
                           seasons: Optional[List[int]] = None,
                           team_id: Optional[str] = None,
                           gender: str = None,
+                          game_ids: Optional[List[str]] = None,
                           force: bool = False) -> None:
     """
     Scrape all ESPN college basketball data.
@@ -392,6 +393,7 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
         seasons: List of seasons to scrape (default: all seasons)
         team_id: Optional team ID to scrape only one team (for testing)
         gender: Either "mens" or "womens" (if None, uses current setting)
+        game_ids: Optional list of specific game IDs to scrape
         force: If True, force refetch even if data exists
     """
     if gender:
@@ -463,13 +465,25 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
                     logger.error(f"Error getting schedule for team {team_id_inner}: {e}")
 
     # Step 3: Extract unique game IDs from all team schedules
-    game_ids = extract_game_ids_from_schedules(seasons, gender)
-    logger.info(f"Found {len(game_ids)} unique games across all seasons")
+    if game_ids:
+        # Use the specific game IDs provided with seasons
+        logger.info(f"Using {len(game_ids)} specific game IDs provided via command line")
+        season_game_ids = set()
+        for game_id in game_ids:
+            # For simplicity, assume all games are in all provided seasons
+            # A more robust approach would determine the correct season for each game
+            for season in seasons:
+                season_game_ids.add((game_id, season))
+        game_ids_set = season_game_ids
+    else:
+        game_ids_set = extract_game_ids_from_schedules(seasons, gender)
+
+    logger.info(f"Found {len(game_ids_set)} unique games across all seasons")
 
     # Step 4: Get game data for all games
-    if game_ids:
+    if game_ids_set:
         logger.info("Fetching all game data")
-        game_ids_list = list(game_ids)
+        game_ids_list = list(game_ids_set)
 
         # Split into smaller batches for better progress tracking
         batch_size = 100

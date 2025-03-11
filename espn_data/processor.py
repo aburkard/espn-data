@@ -1912,6 +1912,7 @@ def process_season_data(season: int, max_workers: int = 4, force: bool = False) 
 def process_all_data(seasons: Optional[List[int]] = None,
                      max_workers: int = 4,
                      gender: str = None,
+                     game_ids: Optional[List[str]] = None,
                      force: bool = False) -> None:
     """
     Process all data for the specified seasons.
@@ -1920,6 +1921,7 @@ def process_all_data(seasons: Optional[List[int]] = None,
         seasons: List of seasons to process (if None, all available seasons are processed)
         max_workers: Maximum number of parallel worker processes
         gender: Either "mens" or "womens" (if None, uses current setting)
+        game_ids: Optional list of specific game IDs to process
         force: If True, force reprocessing even if processed files exist
     """
     if gender:
@@ -1948,17 +1950,96 @@ def process_all_data(seasons: Optional[List[int]] = None,
     for season in tqdm(seasons, desc="Processing seasons"):
         logger.info(f"Processing season {season}")
         try:
-            season_data = process_season_data(season, max_workers=max_workers, force=force)
+            # If specific game IDs are provided, only process those
+            if game_ids:
+                logger.info(f"Processing only specific games: {', '.join(game_ids)}")
+                games_dir = get_games_dir(season)
 
-            # Update summary with this season's data
-            summary["processed_seasons"] += 1
-            summary["total_games"] += season_data.get("total_games", 0)
-            summary["success_games"] += season_data.get("success_games", 0)
-            summary["error_games"] += season_data.get("error_games", 0)
+                # Create result containers to match the process_season_data structure
+                season_results = {
+                    "games_df": None,
+                    "pbp_df": None,
+                    "boxscores_df": None,
+                    "teams_df": None,
+                    "season": season
+                }
+
+                # Process only the specified games
+                game_results = {}
+                for game_id in game_ids:
+                    game_file = games_dir / f"{game_id}.json"
+                    if game_file.exists():
+                        try:
+                            result = process_game_data(game_id, season)
+                            game_results[game_id] = result
+                        except Exception as e:
+                            logger.error(f"Error processing game {game_id}: {e}")
+                            summary['error_games'] += 1
+
+                # Create dataframes from the individual game results
+                if game_results:
+                    # Convert game results to dataframes
+                    all_games = []
+                    all_pbp = []
+                    all_boxscores = []
+
+                    for game_id, result in game_results.items():
+                        if "game" in result:
+                            all_games.append(result["game"])
+                        if "pbp" in result:
+                            all_pbp.extend(result["pbp"])
+                        if "boxscores" in result:
+                            all_boxscores.extend(result["boxscores"])
+
+                    if all_games:
+                        season_results["games_df"] = pd.DataFrame(all_games)
+                    if all_pbp:
+                        season_results["pbp_df"] = pd.DataFrame(all_pbp)
+                    if all_boxscores:
+                        season_results["boxscores_df"] = pd.DataFrame(all_boxscores)
+
+                    # Save the dataframes - need to manually do what process_season_data does
+                    season_dir_csv = get_csv_season_dir(season)
+                    season_dir_parquet = get_parquet_season_dir(season)
+
+                    # Create necessary directories
+                    os.makedirs(season_dir_csv, exist_ok=True)
+                    os.makedirs(season_dir_parquet, exist_ok=True)
+
+                    # Save each dataframe if it exists
+                    if season_results["games_df"] is not None and not season_results["games_df"].empty:
+                        games_csv_file = season_dir_csv / "games.csv"
+                        games_parquet_file = season_dir_parquet / "games.parquet"
+                        season_results["games_df"].to_csv(games_csv_file, index=False)
+                        season_results["games_df"].to_parquet(games_parquet_file, index=False)
+
+                    if season_results["pbp_df"] is not None and not season_results["pbp_df"].empty:
+                        pbp_csv_file = season_dir_csv / "play_by_play.csv"
+                        pbp_parquet_file = season_dir_parquet / "play_by_play.parquet"
+                        season_results["pbp_df"].to_csv(pbp_csv_file, index=False)
+                        season_results["pbp_df"].to_parquet(pbp_parquet_file, index=False)
+
+                    if season_results["boxscores_df"] is not None and not season_results["boxscores_df"].empty:
+                        boxscores_csv_file = season_dir_csv / "boxscores.csv"
+                        boxscores_parquet_file = season_dir_parquet / "boxscores.parquet"
+                        season_results["boxscores_df"].to_csv(boxscores_csv_file, index=False)
+                        season_results["boxscores_df"].to_parquet(boxscores_parquet_file, index=False)
+
+                    summary['success_games'] += len(game_results)
+                    summary['total_games'] += len(game_results)
+            else:
+                # Process the entire season
+                result = process_season_data(season, max_workers, force)
+
+                # Update summary with this season's data
+                summary["processed_seasons"] += 1
+                summary["total_games"] += result.get("total_games", 0)
+                summary["success_games"] += result.get("success_games", 0)
+                summary["error_games"] += result.get("error_games", 0)
 
             logger.info(f"Completed processing season {season}: "
-                        f"{season_data.get('success_games', 0)} games processed, "
-                        f"{season_data.get('error_games', 0)} games with errors")
+                        f"{result.get('success_games', 0)} games processed, "
+                        f"{result.get('error_games', 0)} games with errors")
         except Exception as e:
             logger.error(f"Error processing season {season}: {e}")
 
