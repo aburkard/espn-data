@@ -193,9 +193,7 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
         "game_id": game_id,
         "date": None,
         "venue_id": None,
-        "venue": None,
         "venue_name": None,
-        "venue_location": None,
         "venue_city": None,
         "venue_state": None,
         "attendance": None,
@@ -448,8 +446,7 @@ def process_game_data(game_id: str, season: int, verbose: bool = False) -> Dict[
                 "game_id": game_id,
                 "date": game_details["date"],
                 "venue_id": game_details["venue_id"],
-                "venue": game_details["venue"],
-                "venue_location": game_details["venue_location"],
+                "venue_name": game_details["venue_name"],
                 "venue_city": game_details["venue_city"],
                 "venue_state": game_details["venue_state"],
                 "attendance": game_details["attendance"],
@@ -474,7 +471,7 @@ def process_game_data(game_id: str, season: int, verbose: bool = False) -> Dict[
 
             # Process officials/referees
             logger.debug(f"Game {game_id}: Processing officials data")
-            for official in game_data.get("officials", []):
+            for official in game_data.get("gameInfo", {}).get("officials", []):
                 if official is None:
                     logger.warning(f"Game {game_id}: Found None official entry")
                     continue
