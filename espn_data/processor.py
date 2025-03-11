@@ -1775,7 +1775,9 @@ def process_season_data(season: int, max_workers: int = 4, force: bool = False) 
         }
 
     # Process games data
-    game_id_season_pairs = sorted([(game_id, season) for game_id in schedules_df['game_id'].unique()])
+    # Deduplicate game IDs to avoid counting the same game multiple times
+    unique_game_ids = schedules_df['game_id'].unique()
+    game_id_season_pairs = sorted([(game_id, season) for game_id in unique_game_ids])
     total_games = len(game_id_season_pairs)
 
     logger.info(f"Processing {total_games} games for season {season}")
@@ -1789,10 +1791,18 @@ def process_season_data(season: int, max_workers: int = 4, force: bool = False) 
         # Count successful and failed games
         for dataset_name, df in processed_data.items():
             if not df.empty:
-                if dataset_name == 'game':
-                    success_count = len(df)
+                if dataset_name == 'game_summary':
+                    # Count games where processed=True as successful
+                    success_count = len(df[df['processed'] == True]) if 'processed' in df.columns else 0
 
-        error_count = total_games - success_count
+        # Ensure error_count is never negative
+        error_count = max(0, total_games - success_count)
+
+        # If success_count > total_games, log a warning as this shouldn't happen
+        if success_count > total_games:
+            logger.warning(
+                f"More games successfully processed ({success_count}) than were in schedule ({total_games}) for season {season}. Check for data inconsistency."
+            )
     except Exception as e:
         logger.error(f"Error processing games for season {season}: {e}")
         error_count = total_games
