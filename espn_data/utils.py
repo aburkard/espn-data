@@ -101,9 +101,19 @@ def get_teams_file() -> Path:
     return get_raw_dir() / "teams.json"
 
 
-def get_schedules_dir(season: int) -> Path:
-    """Get the schedules directory for a season."""
-    return get_season_dir(get_raw_dir(), season) / "schedules"
+def get_schedules_dir(season: int, schedule_type: str = "regular") -> Path:
+    """
+    Get the schedules directory for a season.
+    
+    Args:
+        season: Season year
+        schedule_type: Type of schedule ('regular' or 'postseason')
+    
+    Returns:
+        Path to the schedules directory
+    """
+    base_dir = get_season_dir(get_raw_dir(), season) / "schedules"
+    return base_dir / schedule_type
 
 
 def get_games_dir(season: int) -> Path:
@@ -276,13 +286,14 @@ def load_json(file_path: Union[str, Path]) -> Any:
         return json.load(f)
 
 
-def get_team_schedule_params(team_id: str, season: Optional[int] = None) -> Dict[str, Any]:
+def get_team_schedule_params(team_id: str, season: Optional[int] = None, seasontype: int = 2) -> Dict[str, Any]:
     """
     Get parameters for team schedule request.
     
     Args:
         team_id: ESPN team ID
         season: Optional season year (e.g., 2022 for 2021-2022 season)
+        seasontype: Season type (2 for regular season, 3 for postseason)
         
     Returns:
         Dictionary of query parameters
@@ -290,6 +301,7 @@ def get_team_schedule_params(team_id: str, season: Optional[int] = None) -> Dict
     params = {}
     if season:
         params["season"] = season
+    params["seasontype"] = seasontype
     return params
 
 

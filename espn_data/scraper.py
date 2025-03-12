@@ -119,7 +119,8 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
 def get_team_schedule(team_id: str,
                       season: Optional[int] = None,
                       gender: str = None,
-                      force: bool = False) -> Dict[str, Any]:
+                      force: bool = False,
+                      schedule_type: str = "regular") -> Dict[str, Any]:
     """
     Get schedule data for a team for a specific season.
     
@@ -128,6 +129,7 @@ def get_team_schedule(team_id: str,
         season: Season year to get schedule for (e.g., 2022 for 2021-2022 season)
         gender: Either "mens" or "womens" (if None, uses current setting)
         force: If True, force refetch even if data exists
+        schedule_type: Type of schedule ('regular' or 'postseason')
         
     Returns:
         Dictionary containing game data
@@ -140,15 +142,18 @@ def get_team_schedule(team_id: str,
         now = datetime.now()
         season = now.year if now.month > 6 else now.year - 1
 
-    logger.info(f"Fetching schedule for team {team_id} for season {season}")
+    # Determine seasontype based on schedule_type
+    seasontype = 3 if schedule_type == "postseason" else 2
+
+    logger.info(f"Fetching {schedule_type} schedule for team {team_id} for season {season}")
 
     # Check if schedule already exists
-    output_file = get_schedules_dir(season) / f"{team_id}.json"
+    output_file = get_schedules_dir(season, schedule_type) / f"{team_id}.json"
     if not force and output_file.exists():
-        logger.info(f"Using cached schedule for team {team_id} in season {season}")
+        logger.info(f"Using cached {schedule_type} schedule for team {team_id} in season {season}")
         return load_json(output_file)
 
-    params = get_team_schedule_params(team_id, season)
+    params = get_team_schedule_params(team_id, season, seasontype)
     url = get_team_schedule_url().format(team_id=team_id)
 
     try:
@@ -169,7 +174,7 @@ def get_team_schedule(team_id: str,
         return data or {"events": []}
 
     except Exception as e:
-        logger.error(f"Error fetching schedule for team {team_id} in season {season}: {e}")
+        logger.error(f"Error fetching {schedule_type} schedule for team {team_id} in season {season}: {e}")
         return {"events": []}
 
 
@@ -393,25 +398,27 @@ def extract_game_ids_from_schedules(seasons: Optional[List[int]] = None, gender:
     game_data = set()
 
     for season in seasons:
-        schedules_dir = get_schedules_dir(season)
-        if not schedules_dir.exists():
-            logger.warning(f"No schedule directory found for season {season}")
-            continue
+        # Check both regular and postseason schedules
+        for schedule_type in ["regular", "postseason"]:
+            schedules_dir = get_schedules_dir(season, schedule_type)
+            if not schedules_dir.exists():
+                logger.warning(f"No {schedule_type} schedule directory found for season {season}")
+                continue
 
-        schedule_files = list(schedules_dir.glob("*.json"))
-        logger.info(f"Found {len(schedule_files)} team schedules for season {season}")
+            schedule_files = list(schedules_dir.glob("*.json"))
+            logger.info(f"Found {len(schedule_files)} team {schedule_type} schedules for season {season}")
 
-        for schedule_file in schedule_files:
-            try:
-                schedule_data = load_json(schedule_file)
+            for schedule_file in schedule_files:
+                try:
+                    schedule_data = load_json(schedule_file)
 
-                # Access the "events" array in the schedule data
-                for game in schedule_data.get("events", []):
-                    if "id" in game:
-                        game_data.add((game["id"], season))
+                    # Access the "events" array in the schedule data
+                    for game in schedule_data.get("events", []):
+                        if "id" in game:
+                            game_data.add((game["id"], season))
 
-            except Exception as e:
-                logger.error(f"Error extracting game IDs from {schedule_file}: {e}")
+                except Exception as e:
+                    logger.error(f"Error extracting game IDs from {schedule_file}: {e}")
 
     logger.info(f"Extracted {len(game_data)} unique game IDs across all seasons")
     return game_data
@@ -471,40 +478,51 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
         season_dir = get_season_dir(get_raw_dir(), season)
         os.makedirs(season_dir, exist_ok=True)
 
-        # Ensure schedules directory exists
-        schedules_dir = get_schedules_dir(season)
-        os.makedirs(schedules_dir, exist_ok=True)
+        # Ensure schedules base directory exists
+        schedules_base_dir = season_dir / "schedules"
+        os.makedirs(schedules_base_dir, exist_ok=True)
+
+        # Ensure both types of schedule directories exist
+        regular_schedules_dir = get_schedules_dir(season, "regular")
+        postseason_schedules_dir = get_schedules_dir(season, "postseason")
+        os.makedirs(regular_schedules_dir, exist_ok=True)
+        os.makedirs(postseason_schedules_dir, exist_ok=True)
 
         if team_id:
-            # Only get schedule for the specified team
-            team_schedules_file = schedules_dir / f"{team_id}.json"
-            if not force and team_schedules_file.exists():
-                logger.info(f"Using cached schedule for team {team_id} in season {season}")
-            else:
-                games = get_team_schedule(team_id, season, gender, force)
+            # Only get schedules for the specified team
+            for schedule_type in ["regular", "postseason"]:
+                schedules_dir = get_schedules_dir(season, schedule_type)
+                team_schedules_file = schedules_dir / f"{team_id}.json"
 
-                # Save schedule data for this season
-                output_file = schedules_dir / f"{team_id}.json"
-                save_json(games, output_file)
+                if not force and team_schedules_file.exists():
+                    logger.info(f"Using cached {schedule_type} schedule for team {team_id} in season {season}")
+                else:
+                    games = get_team_schedule(team_id, season, gender, force, schedule_type)
+
+                    # Save schedule data for this season
+                    save_json(games, team_schedules_file)
         else:
             # Get schedules for all teams
             for team in teams:
                 team_id_inner = team["id"]
-                team_schedules_file = schedules_dir / f"{team_id_inner}.json"
 
-                if not force and team_schedules_file.exists():
-                    logger.info(f"Using cached schedule for team {team_id_inner} in season {season}")
-                    continue
+                for schedule_type in ["regular", "postseason"]:
+                    schedules_dir = get_schedules_dir(season, schedule_type)
+                    team_schedules_file = schedules_dir / f"{team_id_inner}.json"
 
-                try:
-                    games = get_team_schedule(team_id_inner, season, gender, force)
+                    if not force and team_schedules_file.exists():
+                        logger.info(
+                            f"Using cached {schedule_type} schedule for team {team_id_inner} in season {season}")
+                        continue
 
-                    # Save schedule data for this season
-                    output_file = schedules_dir / f"{team_id_inner}.json"
-                    save_json(games, output_file)
+                    try:
+                        games = get_team_schedule(team_id_inner, season, gender, force, schedule_type)
 
-                except Exception as e:
-                    logger.error(f"Error getting schedule for team {team_id_inner}: {e}")
+                        # Save schedule data for this season
+                        save_json(games, team_schedules_file)
+
+                    except Exception as e:
+                        logger.error(f"Error getting schedule for team {team_id_inner}: {e}")
 
     # Step 3: Extract unique game IDs from all team schedules
     if game_ids:
