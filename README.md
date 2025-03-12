@@ -202,30 +202,7 @@ For more details about the tests, see the [tests/README.md](tests/README.md) fil
 ## TODOs
 
 - [] Mens officials data is broken
-- [] Add static teams data for some newer teams that aren't in teams.json and some teams that are no longer in D1. Here are the men's teams (Kaggle IDs):
-
-|     | TeamID | TeamName         | FirstD1Season | LastD1Season |
-| --: | -----: | :--------------- | ------------: | -----------: |
-|   8 |   1109 | Alliant Intl     |          1985 |         1991 |
-|  17 |   1118 | Armstrong St     |          1987 |         1987 |
-|  20 |   1121 | Augusta          |          1985 |         1991 |
-|  27 |   1128 | Birmingham So    |          2003 |         2006 |
-|  33 |   1134 | Brooklyn         |          1985 |         1992 |
-|  46 |   1147 | Centenary        |          1985 |         2011 |
-| 114 |   1215 | Hardin-Simmons   |          1985 |         1990 |
-| 115 |   1216 | Hartford         |          1985 |         2023 |
-| 188 |   1289 | Morris Brown     |          2002 |         2003 |
-| 201 |   1302 | NE Illinois      |          1991 |         1998 |
-| 226 |   1327 | Okla City        |          1985 |         1985 |
-| 265 |   1366 | Savannah St      |          2003 |         2019 |
-| 282 |   1383 | St Francis NY    |          1985 |         2023 |
-| 331 |   1432 | Utica            |          1985 |         1987 |
-| 344 |   1445 | W Salem St       |          2007 |         2010 |
-| 345 |   1446 | W Texas A&M      |          1985 |         1986 |
-| 372 |   1473 | Lindenwood       |          2023 |         2025 |
-| 373 |   1474 | Queens NC        |          2023 |         2025 |
-| 374 |   1475 | Southern Indiana |          2023 |         2025 |
-
+- [] Add static teams data for women's teams
 - [] Include secondary tournament results. We weren't including them before because they don't have a detailed results file, but now we have the data for possessions.
 - [] Figure out off by one date join logic between Kaggle and ESPN data. Undo inner join!!!
 - [] Filter forfeits, postponements, cancellations, etc. from ESPN data.
