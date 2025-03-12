@@ -215,11 +215,16 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
         game_details["season"] = game_data['header'].get('season', {}).get('year', None)
 
     # Extract boxscore availability information
-    game_details["boxscore_source"] = game_data.get('header', {}).get('competitions', [{}])[0].get('boxscoreSource')
-    game_details["boxscore_available"] = game_data.get('header', {}).get('competitions',
-                                                                         [{}])[0].get('boxscoreAvailable')
-    game_details["play_by_play_source"] = game_data.get('header', {}).get('competitions',
-                                                                          [{}])[0].get('playByPlaySource')
+    competitions = game_data.get('header', {}).get('competitions', [{}])
+    competition = (competitions or [{}])[0]
+    group = competition.get('groups', {})  # This is correct, groups has a dict
+    game_details["boxscore_source"] = competition.get('boxscoreSource')
+    game_details["boxscore_available"] = competition.get('boxscoreAvailable')
+    game_details["play_by_play_source"] = competition.get('playByPlaySource')
+    game_details["is_conference_game"] = competition.get('conferenceCompetition')
+    game_details["conference_id"] = group.get('id')
+    game_details["conference_name"] = group.get('name')
+    game_details["conference_abbreviation"] = group.get('abbreviation')
 
     # Extract date information
     if 'date' in game_data:
@@ -282,13 +287,6 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
         game_details["broadcast"] = broadcast.get('media', {}).get('shortName', None)
         game_details["broadcast_market"] = broadcast.get('market', {}).get('type', None)
         game_details["broadcast_type"] = broadcast.get('type', {}).get('shortName', None)
-
-    # Extract conference information if available
-    if 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
-            game_data['header']['competitions'], list) and len(game_data['header']['competitions']) > 0:
-        competition = game_data['header']['competitions'][0]
-        if 'conferenceCompetition' in competition:
-            game_details["conference"] = competition['conferenceCompetition']
 
     # Extract team information
     if 'header' in game_data and 'competitions' in game_data['header'] and isinstance(
@@ -460,11 +458,17 @@ def process_game_data(game_id: str, season: int, verbose: bool = False) -> Dict[
                 "broadcast": game_details["broadcast"],
                 "broadcast_market": game_details["broadcast_market"],
                 "broadcast_type": game_details["broadcast_type"],
-                "conference": game_details["conference"],
                 "regulation_clock": game_details.get("regulation_clock", 600.0),
                 "overtime_clock": game_details.get("overtime_clock", 300.0),
                 "period_name": game_details.get("period_name", "Quarter"),
-                "num_periods": game_details.get("num_periods", 4)
+                "num_periods": game_details.get("num_periods", 4),
+                "boxscore_source": game_details["boxscore_source"],
+                "boxscore_available": game_details["boxscore_available"],
+                "play_by_play_source": game_details["play_by_play_source"],
+                "is_conference_game": game_details["is_conference_game"],
+                "conference_id": game_details["conference_id"],
+                "conference_name": game_details["conference_name"],
+                "conference_abbreviation": game_details["conference_abbreviation"]
             }
 
             logger.debug(f"Game {game_id}: Game info built successfully")
@@ -478,10 +482,10 @@ def process_game_data(game_id: str, season: int, verbose: bool = False) -> Dict[
 
                 official_data = {
                     "game_id": game_id,
-                    "name": official.get("name", None),
+                    "name": official.get("fullName", None),
                     "display_name": official.get("display_name", None),
-                    "position": official.get("position", None),
-                    "position_id": official.get("position_id", None),
+                    "position": official.get("position", {}).get("name", None),
+                    "position_id": official.get("position", {}).get("id", None),
                     "order": official.get("order", 0)
                 }
                 officials_data.append(official_data)
@@ -685,7 +689,8 @@ def process_game_data(game_id: str, season: int, verbose: bool = False) -> Dict[
 
                                     player_stats.append(player_record)
                             else:
-                                logger.warning(f"Game {game_id}: No athletes or not a list in stat_group")
+                                # It's way too common for a game to be missing player box score stats to be a warning
+                                logger.debug(f"Game {game_id}: No athletes or not a list in stat_group")
                     else:
                         logger.warning(f"Game {game_id}: No statistics in team_data")
 
@@ -1830,7 +1835,7 @@ def process_season_data(season: int,
                         logger.warning(f"Season {season} games with errors ({len(error_games)}):")
                         for _, row in error_games.iterrows():
                             logger.warning(f"Game {row['game_id']} error: {row['error']}")
-                    else:
+                    elif error_count > 0:
                         logger.warning(
                             f"Season {season} has {error_count} games with errors, but no error details were found in the dataframe."
                         )

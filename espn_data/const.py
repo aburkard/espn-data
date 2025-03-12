@@ -53,5 +53,78 @@ MISSING_MENS_TEAMS = [{
 }]
 
 # List of women's teams that need to be fetched individually
-# To be populated with actual missing teams later
-MISSING_WOMENS_TEAMS = []
+MISSING_WOMENS_TEAMS = [
+    # {
+    #     "team_id": None,
+    #     "name": "Alliant International Gulls"
+    # },
+    # {
+    # They were D2 since 1987, no longer exist now
+    #     "team_id": 381,
+    #     "name": "Armstrong State Lady Pirates"
+    # },
+    # {
+    #     "team_id": 2041,
+    #     "name": "Augusta Jaguars"
+    # },
+    {
+        "team_id": 3,
+        "name": "Birmingham-Southern Panthers"
+    },
+    # {
+    #     "team_id": None,
+    #     "name": "Brooklyn Bulldogs"
+    # },
+    {
+        "team_id": 2113,
+        "name": "Centenary (LA) Gentlemen"  # Yes it's Gentlemen on ESPN, but should be Ladies
+    },
+    # {
+    #     "team_id": None,
+    #     "name": "Hardin-Simmons Cowgirls"
+    # },
+    {
+        "team_id": 42,
+        "name": "Hartford Hawks"
+    },
+    {
+        "team_id": 2417,
+        "name": "Morris Brown Wolverines"
+    },
+    # {
+    #     "team_id": None,
+    #     "name": "Northeastern Illinois Golden Eagles"
+    # },
+    # {
+    #     "team_id": None,
+    #     "name": "Oklahoma City Stars"
+    # },
+    {
+        "team_id": 2542,
+        "name": "Savannah State Tigers"
+    },
+    {
+        "team_id": 2597,
+        "name": "St. Francis Brooklyn Terriers"
+    },
+    # {
+    #     "team_id": None,
+    #     "name": "Utica Pioneers"
+    # },
+    {
+        "team_id": 2736,
+        "name": "Winston-Salem Rams"
+    },
+    # {
+    #     "team_id": None,
+    #     "name": "West Texas A&M Buffaloes"
+    # },
+    {
+        "team_id": 2385,
+        "name": "Mercyhurst Lakers"
+    },
+    {
+        "team_id": 2698,
+        "name": "West Georgia Wolves"
+    },
+]
