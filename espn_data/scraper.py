@@ -14,8 +14,9 @@ from tqdm import tqdm
 from datetime import datetime
 
 from espn_data.utils import (make_request, load_json, save_json, get_teams_file, get_schedules_dir, get_games_dir,
-                             get_raw_dir, get_season_dir, get_current_gender, set_gender, get_teams_url,
+                             get_raw_dir, get_season_dir, get_current_gender, set_gender, get_teams_url, get_team_url,
                              get_team_schedule_params, get_team_schedule_url, get_game_data_url)
+from espn_data.const import MISSING_MENS_TEAMS
 
 logger = logging.getLogger("espn_data")
 
@@ -23,6 +24,43 @@ logger = logging.getLogger("espn_data")
 DEFAULT_SEASONS = list(range(2002, 2024))  # NCAA basketball data from 2002-2023
 DEFAULT_CONCURRENCY = 5
 DEFAULT_DELAY = 0.5
+
+
+def get_team_by_id(team_id: str, gender: str = None) -> Dict[str, Any]:
+    """
+    Get information for a specific team by ID.
+    
+    Args:
+        team_id: ESPN team ID
+        gender: Either "mens" or "womens" (if None, uses current setting)
+        
+    Returns:
+        Team data dictionary
+    """
+    if gender:
+        set_gender(gender)
+
+    logger.info(f"Fetching team data for team ID {team_id}")
+
+    url = get_team_url().format(team_id=team_id)
+
+    try:
+        team_data = make_request(url)
+
+        if not team_data:
+            logger.warning(f"No data found for team {team_id}")
+            return {}
+
+        # Extract the team object from the response
+        if "team" in team_data:
+            return team_data["team"]
+        else:
+            logger.warning(f"Unexpected response format for team {team_id}")
+            return team_data  # Return whatever we got
+
+    except Exception as e:
+        logger.error(f"Error fetching data for team {team_id}: {e}")
+        return {}
 
 
 def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bool = False) -> List[Dict[str, Any]]:
@@ -101,6 +139,37 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
             page += 1
 
         logger.info(f"Found {len(all_teams)} teams across {page-1} pages")
+
+        # Extract the team IDs already fetched to avoid duplicates
+        team_ids = {str(team["id"]) for team in all_teams}
+
+        # Process missing teams based on the current gender
+        if get_current_gender() == "mens":
+            # Add missing mens teams that aren't already in the list
+            for missing_team in MISSING_MENS_TEAMS:
+                team_id = str(missing_team["team_id"])
+                if team_id not in team_ids:
+                    logger.info(f"Fetching missing team: {missing_team['name']} (ID: {team_id})")
+                    team_data = get_team_by_id(team_id)
+
+                    if team_data and "id" in team_data:
+                        # Add the first and last D1 season information to the team data
+                        team_data["first_d1_season"] = missing_team.get("first_d1_season")
+                        team_data["last_d1_season"] = missing_team.get("last_d1_season")
+                        all_teams.append(team_data)
+                        team_ids.add(team_id)
+                    else:
+                        # If the team couldn't be fetched by ID, use the data from MISSING_MENS_TEAMS
+                        # Convert the expected format to match the ESPN API format
+                        logger.warning(f"Could not fetch team {team_id} from API, using data from MISSING_MENS_TEAMS")
+                        dummy_team = {
+                            "id": missing_team["team_id"],
+                            "displayName": missing_team["name"],
+                            "first_d1_season": missing_team.get("first_d1_season"),
+                            "last_d1_season": missing_team.get("last_d1_season")
+                        }
+                        all_teams.append(dummy_team)
+                        team_ids.add(team_id)
 
         # Limit number of teams for testing
         if max_teams:

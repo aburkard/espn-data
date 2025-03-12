@@ -25,6 +25,8 @@ URL_TEMPLATES = {
     "mens": {
         "TEAMS_URL":
             "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams",
+        "TEAM_URL":
+            "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/{team_id}",
         "TEAM_SCHEDULE_URL":
             "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/{team_id}/schedule",
         "GAME_DATA_URL":
@@ -33,6 +35,8 @@ URL_TEMPLATES = {
     "womens": {
         "TEAMS_URL":
             "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/teams",
+        "TEAM_URL":
+            "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/teams/{team_id}",
         "TEAM_SCHEDULE_URL":
             "https://site.api.espn.com/apis/site/v2/sports/basketball/womens-college-basketball/teams/{team_id}/schedule",
         "GAME_DATA_URL":
@@ -73,6 +77,11 @@ def get_current_gender() -> str:
 def get_teams_url() -> str:
     """Get the teams URL for the current gender."""
     return URL_TEMPLATES[get_current_gender()]["TEAMS_URL"]
+
+
+def get_team_url() -> str:
+    """Get the individual team URL template for the current gender."""
+    return URL_TEMPLATES[get_current_gender()]["TEAM_URL"]
 
 
 def get_team_schedule_url() -> str:
@@ -185,6 +194,10 @@ def get_TEAMS_URL():
     return get_teams_url()
 
 
+def get_TEAM_URL():
+    return get_team_url()
+
+
 def get_TEAM_SCHEDULE_URL():
     return get_team_schedule_url()
 
@@ -196,6 +209,7 @@ def get_GAME_DATA_URL():
 # These might be used elsewhere as constants, but we'll define them as None
 # and use the above functions to access them
 TEAMS_URL = None
+TEAM_URL = None
 TEAM_SCHEDULE_URL = None
 GAME_DATA_URL = None
 
