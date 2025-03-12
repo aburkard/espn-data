@@ -52,4 +52,6 @@ MISSING_MENS_TEAMS = [{
     "last_d1_season": 2025
 }]
 
-# TODO: Add women's teams
+# List of women's teams that need to be fetched individually
+# To be populated with actual missing teams later
+MISSING_WOMENS_TEAMS = []

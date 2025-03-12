@@ -16,7 +16,7 @@ from datetime import datetime
 from espn_data.utils import (make_request, load_json, save_json, get_teams_file, get_schedules_dir, get_games_dir,
                              get_raw_dir, get_season_dir, get_current_gender, set_gender, get_teams_url, get_team_url,
                              get_team_schedule_params, get_team_schedule_url, get_game_data_url)
-from espn_data.const import MISSING_MENS_TEAMS
+from espn_data.const import MISSING_MENS_TEAMS, MISSING_WOMENS_TEAMS
 
 logger = logging.getLogger("espn_data")
 
@@ -144,9 +144,13 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
         team_ids = {str(team["id"]) for team in all_teams}
 
         # Process missing teams based on the current gender
-        if get_current_gender() == "mens":
-            # Add missing mens teams that aren't already in the list
-            for missing_team in MISSING_MENS_TEAMS:
+        current_gender = get_current_gender()
+        missing_teams = MISSING_MENS_TEAMS if current_gender == "mens" else MISSING_WOMENS_TEAMS
+
+        if missing_teams:
+            logger.info(f"Processing missing {current_gender} teams")
+            # Add missing teams that aren't already in the list
+            for missing_team in missing_teams:
                 team_id = str(missing_team["team_id"])
                 if team_id not in team_ids:
                     logger.info(f"Fetching missing team: {missing_team['name']} (ID: {team_id})")
@@ -159,9 +163,9 @@ def get_all_teams(gender: str = None, max_teams: Optional[int] = None, force: bo
                         all_teams.append(team_data)
                         team_ids.add(team_id)
                     else:
-                        # If the team couldn't be fetched by ID, use the data from MISSING_MENS_TEAMS
-                        # Convert the expected format to match the ESPN API format
-                        logger.warning(f"Could not fetch team {team_id} from API, using data from MISSING_MENS_TEAMS")
+                        # If the team couldn't be fetched by ID, use the data from missing teams list
+                        logger.warning(
+                            f"Could not fetch team {team_id} from API, using data from missing teams constant")
                         dummy_team = {
                             "id": missing_team["team_id"],
                             "displayName": missing_team["name"],
