@@ -209,6 +209,10 @@ For more details about the tests, see the [tests/README.md](tests/README.md) fil
 - [] Use Kaggle data when ESPN is missing games (rare). But see [the dead link to the game on January 28 against E Washington](https://www.espn.com/mens-college-basketball/team/schedule/_/id/147/season/2017).
 - [This game](https://www.espn.com/mens-college-basketball/matchup/_/gameId/223260062) on ESPN has the scores reversed! (I trust Little Rock's own site and sports reference more. Although Wikipedia has a different score. Also it seems likely Hawaii would win.)
 - [] Fix ESPN score_discrepancy rows. ESPN has some bad data that doesn't match sports reference, team sites, wikipedia.
+- [] Do some refs have home team bias?
+- [] Conference in tempo model
+- [] Make sure I have first four results data from ESPN and manually put into Kaggle.
+- [] Get Kaggle 2025 tournament game locations.
 
 ## License
 

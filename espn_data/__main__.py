@@ -79,6 +79,8 @@ async def main() -> None:
                         format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                         handlers=[logging.FileHandler("espn_scraper.log"),
                                   logging.StreamHandler()])
+    # Set the level for the named logger too
+    logger.setLevel(log_level)
     logger.info(f"Logging level set to {'DEBUG' if args.debug else 'INFO'}")
 
     # Set gender

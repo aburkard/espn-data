@@ -305,9 +305,7 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                         "home_away": team.get('homeAway', None),
                         "score": team.get('score', None),
                         "winner": team.get('winner', False),
-                        "conference_id": team.get("conference_id", None),
-                        "conference_slug": team.get("conference_slug", None),
-                        "division": team.get("division", None),
+                        "groups_slug": team.get('team', {}).get("groups", {}).get("slug", None),
                     }
 
                     # Add linescores if available
@@ -315,29 +313,6 @@ def get_game_details(game_data: Dict[str, Any], filename: str = None) -> Dict[st
                         team_info['linescores'] = [
                             line.get('displayValue') for line in team['linescores'] if isinstance(line, dict)
                         ]
-
-                    # Add conference and division info if available
-                    if 'team' in team and 'groups' in team['team']:
-                        # Handle both list and dictionary formats for groups
-                        groups = team['team']['groups']
-                        if isinstance(groups, dict):  # Single group object
-                            # Check if this is a conference
-                            if groups.get('isConference', False):
-                                # Store conference id and slug directly
-                                team_info['conference_id'] = groups.get('id')
-                                team_info['conference_slug'] = groups.get('slug')
-                            # Check for division in the parent field
-                            if 'parent' in groups and isinstance(groups['parent'], dict):
-                                team_info['division'] = groups['parent'].get('name')
-                        elif isinstance(groups, list):  # List of group objects
-                            for group in groups:
-                                if isinstance(group, dict):
-                                    if group.get('isConference', False):
-                                        # Store conference id and slug directly
-                                        team_info['conference_id'] = group.get('id')
-                                        team_info['conference_slug'] = group.get('slug')
-                                    if 'parent' in group and isinstance(group['parent'], dict):
-                                        team_info['division'] = group['parent'].get('name')
 
                     game_details["teams"].append(team_info)
 
@@ -525,9 +500,7 @@ def process_game_data(game_id: str, season: int, verbose: bool = False) -> Dict[
                     "home_away": team.get("home_away", None),
                     "score": team.get("score", None),
                     "winner": team.get("winner", False),
-                    "conference_id": team.get("conference_id", None),
-                    "conference_slug": team.get("conference_slug", None),
-                    "division": team.get("division", None),
+                    "groups_slug": team.get("groups_slug", None),
                 }
 
                 # Add linescores if available
@@ -1184,7 +1157,8 @@ def optimize_dataframe_dtypes(df: pd.DataFrame, data_type: str) -> pd.DataFrame:
             "winner": "bool",
             "team_color": "categorical",
             "team_location": "categorical",
-            "team_nickname": "categorical"
+            "team_nickname": "categorical",
+            "groups_slug": "categorical"
         }
     }
 
