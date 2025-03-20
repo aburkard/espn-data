@@ -1643,12 +1643,15 @@ def process_schedules(season: int, force: bool = False) -> pd.DataFrame:
         return pd.read_csv(csv_schedules_file, parse_dates=['event_date'])
 
     # Get all schedule files for this season
-    schedules_dir = get_schedules_dir(season)
-    if not schedules_dir.exists():
+    regular_season_schedules_dir = get_schedules_dir(season)
+    postseason_schedules_dir = get_schedules_dir(season, schedule_type="postseason")
+    if not regular_season_schedules_dir.exists() and not postseason_schedules_dir.exists():
         logger.warning(f"No schedules directory found for season {season}")
         return pd.DataFrame()
 
-    schedule_files = list(schedules_dir.glob("*.json"))
+    regular_season_schedule_files = list(regular_season_schedules_dir.glob("*.json"))
+    postseason_schedule_files = list(postseason_schedules_dir.glob("*.json"))
+    schedule_files = regular_season_schedule_files + postseason_schedule_files
 
     if not schedule_files:
         logger.warning(f"No schedule files found for season {season}")
