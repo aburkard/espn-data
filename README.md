@@ -201,18 +201,31 @@ For more details about the tests, see the [tests/README.md](tests/README.md) fil
 
 ## TODOs
 
-- [] Mens officials data is broken
-- [] Add static teams data for women's teams
-- [] Include secondary tournament results. We weren't including them before because they don't have a detailed results file, but now we have the data for possessions.
-- [] Figure out off by one date join logic between Kaggle and ESPN data. Undo inner join!!!
-- [] Filter forfeits, postponements, cancellations, etc. from ESPN data.
-- [] Use Kaggle data when ESPN is missing games (rare). But see [the dead link to the game on January 28 against E Washington](https://www.espn.com/mens-college-basketball/team/schedule/_/id/147/season/2017).
+- [x] Mens officials data is broken
+- [x] Add static teams data for women's teams
+- [x] Include secondary tournament results. We weren't including them before because they don't have a detailed results file, but now we have the data for possessions.
+- [x] Figure out off by one date join logic between Kaggle and ESPN data. Undo inner join!!!
+- [x] Filter forfeits, postponements, cancellations, etc. from ESPN data.
+- [x] Use Kaggle data when ESPN is missing games (rare). But see [the dead link to the game on January 28 against E Washington](https://www.espn.com/mens-college-basketball/team/schedule/_/id/147/season/2017).
 - [This game](https://www.espn.com/mens-college-basketball/matchup/_/gameId/223260062) on ESPN has the scores reversed! (I trust Little Rock's own site and sports reference more. Although Wikipedia has a different score. Also it seems likely Hawaii would win.)
 - [] Fix ESPN score_discrepancy rows. ESPN has some bad data that doesn't match sports reference, team sites, wikipedia.
-- [] Do some refs have home team bias?
+- [x] Do some refs have home team bias?
 - [] Conference in tempo model
 - [] Make sure I have first four results data from ESPN and manually put into Kaggle.
 - [] Get Kaggle 2025 tournament game locations.
+- [] Figure out reclassifying teams https://chatgpt.com/c/67dac11b-ee14-8004-a162-30303aa4310c
+- [] Eastern Washington games from 2017 (men's) are broken on ESPN.
+- [] Figure out what to do about forfeits on ESPN, e.g. 2003 St. Bonaventure. Some games have scores, others don't. So it feels like we should keep the ones with reasonable scores.
+- [] Currently filtering out games where ESPN possessions are null. What we need to do is use whatever the best data available is.
+- [x] Map referee names
+- [] Test data injury data!!!!
+- [] NCAA womens still at home?
+- [] Cap porpagatu on the low end (and high?)
+- [] Double check injured players being filtered out of test data. CMD-F It's possible these players missed most or all of the season, but you should check this.
+- [] Map womens ref names
+- [] Use separate params for mean poss accounting for mens shot clock change?
+- [] Use unmatched womens games from ESPN to have more data!!!
+- [x] There are some duplicated games in womens team_stats with the wrong season for some games. I think it might be due to my test files.
 
 ## License
 
