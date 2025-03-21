@@ -173,8 +173,5 @@ cython_debug/
 # macOS
 .DS_Store
 
-# Ignore all files in data/
-data/
-
 # Log files
 *.log
