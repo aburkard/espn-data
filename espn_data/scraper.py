@@ -361,6 +361,7 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
                           data_dir: str = None,
                           game_ids: Optional[List[str]] = None,
                           force: bool = False,
+                          force_schedules: bool = False,
                           verbose: bool = False) -> None:
     """Scrape all ESPN college basketball data."""
     configure(gender=gender, data_dir=data_dir)
@@ -385,6 +386,7 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
         save_json(teams, teams_file)
 
     # Step 2: Get schedules
+    schedule_force = force or force_schedules
     for season in seasons:
         logger.info(f"Processing season {season}")
 
@@ -394,10 +396,10 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
             os.makedirs(season_dir / subdir, exist_ok=True)
 
         if team_id:
-            _fetch_schedules_for_team(team_id, [season], force)
+            _fetch_schedules_for_team(team_id, [season], schedule_force)
         else:
             for team in teams:
-                _fetch_schedules_for_team(str(team["id"]), [season], force)
+                _fetch_schedules_for_team(str(team["id"]), [season], schedule_force)
 
     # Step 3: Collect game IDs
     if game_ids:
@@ -441,12 +443,15 @@ def main() -> None:
                         help="Gender (mens or womens, default is womens)")
     parser.add_argument("--output-dir", "-o", type=str,
                         help="Output data directory (default: data/)")
-    parser.add_argument("--force", "-f", action="store_true", help="Force refetch data even if it exists locally")
+    parser.add_argument("--force", "-f", action="store_true", help="Force refetch all data even if it exists locally")
+    parser.add_argument("--force-schedules", action="store_true",
+                        help="Force refetch schedules only (useful for picking up new tournament games)")
     args = parser.parse_args()
 
     asyncio.run(scrape_all_data(
         concurrency=args.concurrency, delay=args.delay, seasons=args.seasons,
-        team_id=args.team, gender=args.gender, data_dir=args.output_dir, force=args.force,
+        team_id=args.team, gender=args.gender, data_dir=args.output_dir,
+        force=args.force, force_schedules=args.force_schedules,
     ))
 
 

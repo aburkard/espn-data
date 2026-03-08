@@ -65,6 +65,9 @@ async def main() -> None:
     parser.add_argument("--force",
                         action="store_true",
                         help="Force re-scraping or re-processing of data, ignoring cached files")
+    parser.add_argument("--force-schedules",
+                        action="store_true",
+                        help="Force refetch schedules only (useful for picking up new tournament games)")
 
     # Add verbose cache option
     parser.add_argument("--verbose",
@@ -122,6 +125,7 @@ async def main() -> None:
                               gender=args.gender,
                               game_ids=args.game_ids,
                               force=args.force,
+                              force_schedules=args.force_schedules,
                               verbose=args.verbose)
     else:
         # Run the full workflow
@@ -133,6 +137,7 @@ async def main() -> None:
                               gender=args.gender,
                               game_ids=args.game_ids,
                               force=args.force,
+                              force_schedules=args.force_schedules,
                               verbose=args.verbose)
 
         # Step 2: Process data
