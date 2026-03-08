@@ -28,11 +28,8 @@ DEFAULT_DELAY = 0.5
 # Team fetching
 # ---------------------------------------------------------------------------
 
-def get_team_by_id(team_id: str, gender: str = None) -> Dict[str, Any]:
+def get_team_by_id(team_id: str) -> Dict[str, Any]:
     """Get information for a specific team by ID."""
-    if gender:
-        set_gender(gender)
-
     logger.info(f"Fetching team data for team ID {team_id}")
     url = get_team_url().format(team_id=team_id)
 
@@ -47,12 +44,9 @@ def get_team_by_id(team_id: str, gender: str = None) -> Dict[str, Any]:
         return {}
 
 
-def get_all_teams(gender: str = None, max_teams: Optional[int] = None,
+def get_all_teams(max_teams: Optional[int] = None,
                   force: bool = False) -> List[Dict[str, Any]]:
     """Get information for all teams with pagination."""
-    if gender:
-        set_gender(gender)
-
     teams_file = get_teams_file()
 
     # Use cache if available
@@ -159,12 +153,9 @@ def _add_missing_teams(all_teams: List[Dict[str, Any]]) -> None:
 # Schedule fetching
 # ---------------------------------------------------------------------------
 
-def get_team_schedule(team_id: str, season: Optional[int] = None, gender: str = None,
+def get_team_schedule(team_id: str, season: Optional[int] = None,
                       force: bool = False, schedule_type: str = "regular") -> Dict[str, Any]:
     """Get schedule data for a team for a specific season."""
-    if gender:
-        set_gender(gender)
-
     if not season:
         now = datetime.now()
         season = now.year if now.month > 6 else now.year - 1
@@ -203,12 +194,9 @@ def get_team_schedule(team_id: str, season: Optional[int] = None, gender: str = 
 # Game data fetching
 # ---------------------------------------------------------------------------
 
-def get_game_data(game_id: str, season: int, gender: str = None,
+def get_game_data(game_id: str, season: int,
                   force: bool = False, verbose_cache: bool = True) -> Dict[str, Any]:
     """Get ESPN game data for a specific game. Saves to disk."""
-    if gender is not None:
-        set_gender(gender)
-
     games_dir = get_games_dir(season)
     output_file = games_dir / f"{game_id}.json"
 
@@ -236,12 +224,9 @@ def get_game_data(game_id: str, season: int, gender: str = None,
 
 
 async def fetch_game_async(session: aiohttp.ClientSession, game_id: str, season: int,
-                           gender: str = None, force: bool = False,
+                           force: bool = False,
                            verbose_cache: bool = True) -> Tuple[str, Dict[str, Any], int]:
     """Fetch ESPN game data asynchronously. Saves to disk."""
-    if gender:
-        set_gender(gender)
-
     games_dir = get_games_dir(season)
     output_file = games_dir / f"{game_id}.json"
 
@@ -271,12 +256,9 @@ async def fetch_game_async(session: aiohttp.ClientSession, game_id: str, season:
 async def fetch_games_batch(game_data_list: List[Tuple[str, int]],
                             concurrency: int = DEFAULT_CONCURRENCY,
                             delay: float = DEFAULT_DELAY,
-                            gender: str = None, force: bool = False,
+                            force: bool = False,
                             verbose_cache: bool = True) -> Dict[str, Dict[str, Any]]:
     """Fetch and save a batch of games in parallel."""
-    if gender:
-        set_gender(gender)
-
     # Separate cached vs uncached games
     games_map = {}
     if not force:
@@ -304,7 +286,7 @@ async def fetch_games_batch(game_data_list: List[Tuple[str, int]],
             if delay > 0:
                 await asyncio.sleep(random.uniform(0, delay))
             return await fetch_game_async(session, game_id, season,
-                                          gender=gender, force=force, verbose_cache=verbose_cache)
+                                          force=force, verbose_cache=verbose_cache)
 
     async with aiohttp.ClientSession() as session:
         tasks = [fetch_with_semaphore(session, gid, s) for gid, s in game_data_list]
@@ -322,11 +304,8 @@ async def fetch_games_batch(game_data_list: List[Tuple[str, int]],
 # Schedule parsing
 # ---------------------------------------------------------------------------
 
-def extract_game_ids_from_schedules(seasons: Optional[List[int]] = None,
-                                    gender: str = None) -> Set[Tuple[str, int]]:
+def extract_game_ids_from_schedules(seasons: Optional[List[int]] = None) -> Set[Tuple[str, int]]:
     """Extract game IDs from all team schedules."""
-    if gender:
-        set_gender(gender)
     if seasons is None:
         seasons = DEFAULT_SEASONS
 
@@ -359,7 +338,7 @@ def extract_game_ids_from_schedules(seasons: Optional[List[int]] = None,
 # Main scraping orchestration
 # ---------------------------------------------------------------------------
 
-def _fetch_schedules_for_team(team_id: str, seasons: List[int], gender: str, force: bool):
+def _fetch_schedules_for_team(team_id: str, seasons: List[int], force: bool):
     """Fetch regular and postseason schedules for a single team across seasons."""
     for season in seasons:
         for schedule_type in ("regular", "postseason"):
@@ -368,7 +347,7 @@ def _fetch_schedules_for_team(team_id: str, seasons: List[int], gender: str, for
                 logger.info(f"Using cached {schedule_type} schedule for team {team_id} in season {season}")
                 continue
             try:
-                games = get_team_schedule(team_id, season, gender, force, schedule_type)
+                games = get_team_schedule(team_id, season, force, schedule_type)
                 save_json(games, output_file)
             except Exception as e:
                 logger.error(f"Error getting {schedule_type} schedule for team {team_id} season {season}: {e}")
@@ -398,7 +377,7 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
         logger.info("Using cached teams data")
         teams = load_json(teams_file)
     else:
-        teams = get_all_teams(gender, force=force)
+        teams = get_all_teams(force=force)
         if not teams:
             logger.error("Failed to retrieve teams, aborting")
             return
@@ -415,17 +394,17 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
             os.makedirs(season_dir / subdir, exist_ok=True)
 
         if team_id:
-            _fetch_schedules_for_team(team_id, [season], gender, force)
+            _fetch_schedules_for_team(team_id, [season], force)
         else:
             for team in teams:
-                _fetch_schedules_for_team(str(team["id"]), [season], gender, force)
+                _fetch_schedules_for_team(str(team["id"]), [season], force)
 
     # Step 3: Collect game IDs
     if game_ids:
         logger.info(f"Using {len(game_ids)} specific game IDs provided via command line")
         game_ids_set = {(gid, season) for gid in game_ids for season in seasons}
     else:
-        game_ids_set = extract_game_ids_from_schedules(seasons, gender)
+        game_ids_set = extract_game_ids_from_schedules(seasons)
 
     logger.info(f"Found {len(game_ids_set)} unique games across all seasons")
 
@@ -438,7 +417,7 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
         for i in range(0, len(game_ids_list), batch_size):
             batch = game_ids_list[i:i + batch_size]
             logger.info(f"Processing batch {i // batch_size + 1}/{math.ceil(len(game_ids_list) / batch_size)}")
-            await fetch_games_batch(batch, concurrency, delay, gender, force, verbose)
+            await fetch_games_batch(batch, concurrency, delay, force, verbose)
 
     logger.info("Data scraping complete")
 
