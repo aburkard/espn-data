@@ -4,6 +4,7 @@ import os
 import json
 import time
 import logging
+from dataclasses import dataclass, field
 from pathlib import Path
 import requests
 from typing import Dict, Any, Optional, Union
@@ -13,10 +14,9 @@ logger = logging.getLogger("espn_data")
 # Paths
 BASE_DIR = Path(__file__).parent
 PROJECT_ROOT = BASE_DIR.parent
-DATA_DIR = PROJECT_ROOT / "data"
 
 # URL templates by gender
-URL_TEMPLATES = {
+_URL_TEMPLATES = {
     "mens": {
         "teams": "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams",
         "team": "https://site.api.espn.com/apis/site/v2/sports/basketball/mens-college-basketball/teams/{team_id}",
@@ -40,27 +40,48 @@ HEADERS = {
     "Origin": "https://www.espn.com",
 }
 
+
 # ---------------------------------------------------------------------------
-# Gender state
+# Config
 # ---------------------------------------------------------------------------
 
-CURRENT_GENDER = None
+@dataclass
+class Config:
+    """Central configuration — set once at program start, read everywhere."""
+    gender: str = "womens"
+    data_dir: Path = field(default_factory=lambda: PROJECT_ROOT / "data")
+
+    def __post_init__(self):
+        if self.gender not in ("mens", "womens"):
+            raise ValueError("Gender must be either 'mens' or 'womens'")
+        self.data_dir = Path(self.data_dir)
 
 
+_config = Config()
+
+
+def configure(gender: str = None, data_dir: Union[str, Path] = None) -> None:
+    """Set global configuration. Call once at program start."""
+    if gender is not None:
+        if gender not in ("mens", "womens"):
+            raise ValueError("Gender must be either 'mens' or 'womens'")
+        _config.gender = gender
+    if data_dir is not None:
+        _config.data_dir = Path(data_dir)
+
+
+def get_config() -> Config:
+    """Get the current configuration."""
+    return _config
+
+
+# Backward-compat aliases
 def set_gender(gender: str) -> None:
-    """Set the current gender for basketball data."""
-    global CURRENT_GENDER
-    if gender not in ("mens", "womens"):
-        raise ValueError("Gender must be either 'mens' or 'womens'")
-    CURRENT_GENDER = gender
+    configure(gender=gender)
 
 
 def get_current_gender() -> str:
-    """Get the current gender setting, defaulting to 'womens'."""
-    global CURRENT_GENDER
-    if CURRENT_GENDER is None:
-        CURRENT_GENDER = "womens"
-    return CURRENT_GENDER
+    return _config.gender
 
 
 # ---------------------------------------------------------------------------
@@ -69,7 +90,7 @@ def get_current_gender() -> str:
 
 def _get_url(key: str) -> str:
     """Get a URL template for the current gender."""
-    return URL_TEMPLATES[get_current_gender()][key]
+    return _URL_TEMPLATES[_config.gender][key]
 
 
 def get_teams_url() -> str:
@@ -101,7 +122,7 @@ get_GAME_DATA_URL = get_game_data_url
 
 def get_raw_dir() -> Path:
     """Get the raw data directory for the current gender."""
-    return DATA_DIR / "raw" / get_current_gender()
+    return _config.data_dir / "raw" / _config.gender
 
 
 def get_season_dir(base_dir: Path, season: int) -> Path:
@@ -122,7 +143,7 @@ def get_games_dir(season: int) -> Path:
 
 
 def get_processed_dir() -> Path:
-    return DATA_DIR / "processed" / get_current_gender()
+    return _config.data_dir / "processed" / _config.gender
 
 
 def get_csv_dir() -> Path:
@@ -161,15 +182,16 @@ def get_parquet_games_dir(season: int) -> Path:
 # Ensure base directories exist (called at import time)
 # ---------------------------------------------------------------------------
 
-def _ensure_base_dirs():
-    """Create the base directory structure."""
+def ensure_dirs():
+    """Create the base directory structure for the current config."""
+    d = _config.data_dir
     for gender in ("mens", "womens"):
         for subdir in ("raw", "processed"):
-            os.makedirs(DATA_DIR / subdir / gender, exist_ok=True)
+            os.makedirs(d / subdir / gender, exist_ok=True)
         for fmt in ("csv", "parquet"):
-            os.makedirs(DATA_DIR / "processed" / gender / fmt, exist_ok=True)
+            os.makedirs(d / "processed" / gender / fmt, exist_ok=True)
 
-_ensure_base_dirs()
+ensure_dirs()
 
 
 # ---------------------------------------------------------------------------

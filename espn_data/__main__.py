@@ -8,7 +8,7 @@ from typing import List, Optional
 
 from espn_data.scraper import scrape_all_data
 from espn_data.processor import process_all_data
-from espn_data.utils import set_gender, get_current_gender
+from espn_data.utils import configure, get_current_gender, ensure_dirs
 
 logger = logging.getLogger("espn_data")
 
@@ -71,6 +71,10 @@ async def main() -> None:
                         action="store_true",
                         help="Log detailed information (e.g., each cached or processed game)")
 
+    # Output directory
+    parser.add_argument("--output-dir", "-o", type=str,
+                        help="Data directory for reading raw data and writing output (default: data/)")
+
     args = parser.parse_args()
 
     # Configure logging based on command-line argument
@@ -83,8 +87,10 @@ async def main() -> None:
     logger.setLevel(log_level)
     logger.info(f"Logging level set to {'DEBUG' if args.debug else 'INFO'}")
 
-    # Set gender
-    set_gender(args.gender)
+    # Set config
+    configure(gender=args.gender, data_dir=args.output_dir)
+    if args.output_dir:
+        ensure_dirs()
     logger.info(f"Using gender: {args.gender}")
 
     # Determine seasons to scrape

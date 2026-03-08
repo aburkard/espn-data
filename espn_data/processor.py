@@ -15,7 +15,7 @@ import argparse
 from espn_data.utils import (load_json, save_json, get_teams_file, get_schedules_dir, get_games_dir, get_processed_dir,
                              get_csv_dir, get_parquet_dir, get_csv_teams_file, get_parquet_teams_file,
                              get_csv_season_dir, get_parquet_season_dir, get_csv_games_dir, get_parquet_games_dir,
-                             set_gender, get_current_gender)
+                             configure, get_config, set_gender, get_current_gender)
 from espn_data.scraper import get_game_data, DEFAULT_SEASONS
 
 logger = logging.getLogger("espn_data")
@@ -844,11 +844,10 @@ def process_game_data(game_id: str, season: int, verbose: bool = False) -> Dict[
         return {"game_id": game_id, "season": season, "processed": False, "error": str(e)}
 
 
-def process_game_with_season(game_id, season, force, gender=None, verbose=False):
-    """Helper for multiprocessing: process a game with gender context."""
+def process_game_with_season(game_id, season, force, gender=None, data_dir=None, verbose=False):
+    """Helper for multiprocessing: process a game with config context."""
     try:
-        if gender:
-            set_gender(gender)
+        configure(gender=gender, data_dir=data_dir)
         return process_game_data(game_id, season, verbose)
     except Exception as e:
         logger.error(f"Error in process_game_with_season for game {game_id}: {e}")
@@ -1097,12 +1096,13 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False,
     game_results = {dt: [] for dt in data_type_names}
     game_summary = []
 
-    current_gender = get_current_gender()
-    logger.info(f"Processing games with gender: {current_gender}")
+    cfg = get_config()
+    logger.info(f"Processing games with gender: {cfg.gender}")
 
     with ProcessPoolExecutor(max_workers=max_workers) as executor:
         futures = [
-            executor.submit(process_game_with_season, gid, season, force, current_gender, verbose)
+            executor.submit(process_game_with_season, gid, season, force,
+                            cfg.gender, str(cfg.data_dir), verbose)
             for gid in game_ids
         ]
 
@@ -1339,11 +1339,11 @@ def process_season_data(season: int, max_workers: int = 4, force: bool = False,
 
 
 def process_all_data(seasons: Optional[List[int]] = None, max_workers: int = 4,
-                     gender: str = None, game_ids: Optional[List[str]] = None,
+                     gender: str = None, data_dir: Union[str, Path] = None,
+                     game_ids: Optional[List[str]] = None,
                      force: bool = False, verbose: bool = False) -> None:
     """Process all data for the specified seasons."""
-    if gender:
-        set_gender(gender)
+    configure(gender=gender, data_dir=data_dir)
 
     logger.info(f"Processing all data for {get_current_gender()} basketball")
 
@@ -1441,10 +1441,13 @@ def main() -> None:
                         help="Maximum number of concurrent processes (default: 4)")
     parser.add_argument("--gender", "-g", type=str, choices=["mens", "womens"],
                         help="Gender (mens or womens, default is womens)")
+    parser.add_argument("--output-dir", "-o", type=str,
+                        help="Output data directory (default: data/)")
     parser.add_argument("--force", "-f", action="store_true", help="Force reprocessing even if files exist locally")
     args = parser.parse_args()
 
-    process_all_data(seasons=args.seasons, max_workers=args.max_workers, gender=args.gender, force=args.force)
+    process_all_data(seasons=args.seasons, max_workers=args.max_workers,
+                     gender=args.gender, data_dir=args.output_dir, force=args.force)
 
 
 if __name__ == "__main__":

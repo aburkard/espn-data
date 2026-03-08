@@ -13,7 +13,7 @@ from tqdm import tqdm
 from datetime import datetime
 
 from espn_data.utils import (make_request, load_json, save_json, get_teams_file, get_schedules_dir, get_games_dir,
-                             get_raw_dir, get_season_dir, get_current_gender, set_gender, get_teams_url, get_team_url,
+                             get_raw_dir, get_season_dir, get_current_gender, configure, get_teams_url, get_team_url,
                              get_team_schedule_params, get_team_schedule_url, get_game_data_url)
 from espn_data.const import MISSING_MENS_TEAMS, MISSING_WOMENS_TEAMS
 
@@ -358,12 +358,12 @@ async def scrape_all_data(concurrency: int = DEFAULT_CONCURRENCY,
                           seasons: Optional[List[int]] = None,
                           team_id: Optional[str] = None,
                           gender: str = None,
+                          data_dir: str = None,
                           game_ids: Optional[List[str]] = None,
                           force: bool = False,
                           verbose: bool = False) -> None:
     """Scrape all ESPN college basketball data."""
-    if gender:
-        set_gender(gender)
+    configure(gender=gender, data_dir=data_dir)
 
     logger.info(f"Starting scraper for {get_current_gender()} college basketball data")
 
@@ -439,12 +439,14 @@ def main() -> None:
     parser.add_argument("--team", "-t", type=str, help="Team ID to scrape (for testing)")
     parser.add_argument("--gender", "-g", type=str, choices=["mens", "womens"],
                         help="Gender (mens or womens, default is womens)")
+    parser.add_argument("--output-dir", "-o", type=str,
+                        help="Output data directory (default: data/)")
     parser.add_argument("--force", "-f", action="store_true", help="Force refetch data even if it exists locally")
     args = parser.parse_args()
 
     asyncio.run(scrape_all_data(
         concurrency=args.concurrency, delay=args.delay, seasons=args.seasons,
-        team_id=args.team, gender=args.gender, force=args.force,
+        team_id=args.team, gender=args.gender, data_dir=args.output_dir, force=args.force,
     ))
 
 
