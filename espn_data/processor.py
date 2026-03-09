@@ -1206,6 +1206,19 @@ def process_all_games(season: int, max_workers: int = 4, force: bool = False,
         except Exception as e:
             logger.error(f"Error saving {dt} files: {e}")
 
+    # Compute game control metrics from play-by-play
+    pbp_df = combined_dfs.get("play_by_play", pd.DataFrame())
+    if not pbp_df.empty:
+        try:
+            from espn_data.game_control import compute_game_metrics
+            gc_df = compute_game_metrics(pbp_df)
+            gc_df.to_csv(csv_season_dir / "game_control.csv", index=False)
+            gc_df.to_parquet(parquet_season_dir / "game_control.parquet", index=False)
+            combined_dfs["game_control"] = gc_df
+            logger.info(f"Saved game_control with {len(gc_df)} rows")
+        except Exception as e:
+            logger.error(f"Error computing game control metrics: {e}")
+
     return combined_dfs
 
 
