@@ -563,6 +563,25 @@ def track_lineups_hmm(game_data: dict) -> Optional[pd.DataFrame]:
 
         return dist_prev, dist_next
 
+    # Position groups for position-aware tiebreaking
+    _GUARD_POSITIONS = {"G", "PG", "SG"}
+    _FORWARD_POSITIONS = {"F", "C", "PF", "SF"}
+
+    player_position_group = {}  # pid -> "G" or "F"
+    for tid in [home_id, away_id]:
+        for pid, info in roster.get(tid, {}).items():
+            pos = info.get("position", "")
+            if pos in _GUARD_POSITIONS:
+                player_position_group[pid] = "G"
+            else:
+                player_position_group[pid] = "F"
+
+    # Expected position distribution from starters
+    starter_pos_dist = {}  # tid -> {"G": n, "F": n}
+    for tid in [home_id, away_id]:
+        g_count = sum(1 for pid in starters[tid] if player_position_group.get(pid) == "G")
+        starter_pos_dist[tid] = {"G": g_count, "F": 5 - g_count}
+
     # Score function: combine forward, backward, and minutes evidence
     def _player_score(pid: str, play_idx: int) -> float:
         """Score how likely a player is to be on court at a given play.
@@ -573,7 +592,6 @@ def track_lineups_hmm(game_data: dict) -> Optional[pd.DataFrame]:
         prior = minutes_prior.get(pid, 0.25)
 
         # Convert distances to "evidence" using exponential decay
-        # A player seen 0 plays ago has evidence 1.0, decaying with distance
         decay = 0.05
         fwd_evidence = np.exp(-decay * dist_prev)
         bwd_evidence = np.exp(-decay * dist_next)
@@ -587,6 +605,66 @@ def track_lineups_hmm(game_data: dict) -> Optional[pd.DataFrame]:
         # Weight by minutes prior — high-minute players get a boost
         return combined * (0.7 + 0.3 * prior)
 
+    def _select_top5_with_position(tid: str, candidates: list) -> set[str]:
+        """Select top 5 players with position-aware tiebreaking.
+
+        If the naive top-5 has a different guard/forward distribution than
+        the starting lineup, and a "wrong-position" player near the cutoff
+        has a similar score to a "right-position" player just outside,
+        swap them.
+        """
+        candidates.sort(reverse=True)
+        top5 = [(score, pid) for score, pid in candidates[:5]]
+        rest = [(score, pid) for score, pid in candidates[5:]]
+
+        if not rest:
+            return {pid for _, pid in top5}
+
+        # Count position groups in current top 5
+        expected = starter_pos_dist[tid]
+        current_g = sum(1 for _, pid in top5 if player_position_group.get(pid) == "G")
+        current_f = 5 - current_g
+
+        # If distribution matches expected, no adjustment needed
+        if current_g == expected["G"]:
+            return {pid for _, pid in top5}
+
+        # Try swapping the weakest "over-represented" position player
+        # with the strongest "under-represented" position player from rest
+        margin = 0.12  # only swap if scores are within this margin
+
+        if current_g > expected["G"]:
+            over_pos, under_pos = "G", "F"
+        else:
+            over_pos, under_pos = "F", "G"
+
+        # Find weakest over-represented player in top5
+        over_candidates = [
+            (s, p) for s, p in top5
+            if player_position_group.get(p) == over_pos
+        ]
+        if not over_candidates:
+            return {pid for _, pid in top5}
+        weakest_over = min(over_candidates, key=lambda x: x[0])
+
+        # Find strongest under-represented player in rest
+        under_candidates = [
+            (s, p) for s, p in rest
+            if player_position_group.get(p) == under_pos
+        ]
+        if not under_candidates:
+            return {pid for _, pid in top5}
+        strongest_under = max(under_candidates, key=lambda x: x[0])
+
+        # Swap if scores are close enough
+        if weakest_over[0] - strongest_under[0] < margin:
+            result = {pid for _, pid in top5}
+            result.discard(weakest_over[1])
+            result.add(strongest_under[1])
+            return result
+
+        return {pid for _, pid in top5}
+
     # Build lineups at each play
     rows = []
     for play_idx, pp in enumerate(parsed):
@@ -596,8 +674,7 @@ def track_lineups_hmm(game_data: dict) -> Optional[pd.DataFrame]:
             for pid in eligible[tid]:
                 score = _player_score(pid, play_idx)
                 candidates.append((score, pid))
-            candidates.sort(reverse=True)
-            on_court[tid] = {pid for _, pid in candidates[:5]}
+            on_court[tid] = _select_top5_with_position(tid, candidates)
 
         rows.append({
             "play_id": pp["play_id"],
@@ -621,6 +698,119 @@ def track_lineups_hmm(game_data: dict) -> Optional[pd.DataFrame]:
     df = pd.DataFrame(rows)
     df["home_team_id"] = home_id
     df["away_team_id"] = away_id
+
+    # Post-processing: minutes budget constraint (optional)
+    # Disabled for now — marginal gains don't justify the complexity
+    # and can hurt on some game samples.
+    # df = _apply_minutes_budget(df, roster, home_id, away_id, eligible,
+    #                            minutes_prior, _player_score, n_plays,
+    #                            player_position_group, starter_pos_dist)
+
+    return df
+
+
+def _apply_minutes_budget(
+    df: pd.DataFrame,
+    roster: dict,
+    home_id: str,
+    away_id: str,
+    eligible: dict,
+    minutes_prior: dict,
+    score_fn,
+    n_plays: int,
+    player_position_group: dict,
+    starter_pos_dist: dict,
+) -> pd.DataFrame:
+    """Post-process lineups to better match box score minutes.
+
+    For each team:
+    1. Count how many plays each player is assigned on-court
+    2. Compare to expected (minutes/40 * total_plays)
+    3. For over-allocated players, find their weakest plays and swap them
+       with the strongest under-allocated player at that play
+    """
+    for tid in [home_id, away_id]:
+        side = "home" if tid == home_id else "away"
+        col = f"{side}_on_court"
+
+        # Count current allocation
+        player_play_count = {}
+        for pid in eligible[tid]:
+            player_play_count[pid] = 0
+
+        for idx, row in df.iterrows():
+            lineup = set(row[col].split(",")) - {""}
+            for pid in lineup:
+                if pid in player_play_count:
+                    player_play_count[pid] += 1
+
+        total_plays = len(df)
+
+        # Expected plays per player
+        expected = {}
+        for pid in eligible[tid]:
+            expected[pid] = minutes_prior.get(pid, 0.25) * total_plays
+
+        # Find over/under allocated players
+        over = {pid: player_play_count[pid] - expected[pid]
+                for pid in eligible[tid]
+                if player_play_count[pid] > expected[pid] * 1.15}  # >15% over
+        under = {pid: expected[pid] - player_play_count[pid]
+                 for pid in eligible[tid]
+                 if player_play_count[pid] < expected[pid] * 0.85}  # >15% under
+
+        if not over or not under:
+            continue
+
+        # For each over-allocated player, find plays where their score is
+        # weakest and an under-allocated player could replace them
+        # Collect (play_idx, over_pid, over_score, under_pid, under_score)
+        swaps = []
+        for idx in range(len(df)):
+            row = df.iloc[idx]
+            lineup = set(row[col].split(",")) - {""}
+
+            for over_pid in over:
+                if over_pid not in lineup:
+                    continue
+                over_score = score_fn(over_pid, idx)
+
+                for under_pid in under:
+                    if under_pid in lineup:
+                        continue
+                    under_score = score_fn(under_pid, idx)
+
+                    # Only swap if scores are close (under player is plausible)
+                    if under_score > over_score * 0.5:
+                        benefit = (over[over_pid] + under[under_pid]) / total_plays
+                        score_gap = over_score - under_score
+                        swaps.append((benefit - score_gap * 0.5, idx,
+                                     over_pid, under_pid))
+
+        # Apply best swaps greedily
+        swaps.sort(reverse=True)
+        swaps_applied = 0
+        max_swaps = int(sum(over.values()) * 0.3)  # conservative: fix at most 30%
+
+        for _, idx, over_pid, under_pid in swaps:
+            if swaps_applied >= max_swaps:
+                break
+            if over.get(over_pid, 0) <= 0 or under.get(under_pid, 0) <= 0:
+                continue
+
+            row = df.iloc[idx]
+            lineup = set(row[col].split(",")) - {""}
+            if over_pid not in lineup or under_pid in lineup:
+                continue
+
+            lineup.discard(over_pid)
+            lineup.add(under_pid)
+            df.at[df.index[idx], col] = ",".join(sorted(lineup))
+
+            over[over_pid] -= 1
+            under[under_pid] -= 1
+            swaps_applied += 1
+
     return df
 
 
