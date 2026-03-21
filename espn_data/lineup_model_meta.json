@@ -1,0 +1,36 @@
+{
+  "features": [
+    "fwd_05",
+    "bwd_05",
+    "max_05",
+    "min_05",
+    "fwd_12",
+    "bwd_12",
+    "max_12",
+    "minutes_prior",
+    "is_starter",
+    "norm_dist_prev",
+    "norm_dist_next",
+    "db_prev",
+    "db_next",
+    "sights_in_window",
+    "total_sights",
+    "fwd_x_min",
+    "bwd_x_min"
+  ],
+  "config": {
+    "n_estimators": 2000,
+    "max_depth": -1,
+    "learning_rate": 0.02,
+    "num_leaves": 63,
+    "subsample": 0.7,
+    "min_child_samples": 100,
+    "reg_alpha": 0.5,
+    "reg_lambda": 1.0
+  },
+  "cv_brier": 0.06876219065126231,
+  "baseline_brier": 0.12508904060995657,
+  "n_obs": 637277,
+  "n_games": 100,
+  "model_type": "lightgbm"
+}
