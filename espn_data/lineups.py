@@ -12,8 +12,10 @@ All produce the same output format: for each play, the set of players
 on court for each team.
 """
 
+import bisect
 import json
 import logging
+import pickle
 import re
 from itertools import combinations
 from pathlib import Path
@@ -21,6 +23,7 @@ from typing import Optional
 
 import numpy as np
 import pandas as pd
+from scipy.optimize import brentq
 
 logger = logging.getLogger("espn_data")
 
@@ -947,3 +950,114 @@ def _clock_to_seconds(clock_str: str) -> Optional[int]:
     if match:
         return int(match.group(1)) * 60 + int(match.group(2))
     return None
+
+
+# ---------------------------------------------------------------------------
+# Model-based lineup probabilities
+# ---------------------------------------------------------------------------
+
+_MODEL_CACHE = {}
+
+
+def _load_model(model_path: Path):
+    """Load and cache the LightGBM model."""
+    key = str(model_path)
+    if key not in _MODEL_CACHE:
+        with open(model_path, "rb") as f:
+            _MODEL_CACHE[key] = pickle.load(f)
+    return _MODEL_CACHE[key]
+
+
+def _logit(p):
+    p = np.clip(p, 1e-7, 1 - 1e-7)
+    return np.log(p / (1 - p))
+
+
+def _sigmoid(x):
+    return 1.0 / (1.0 + np.exp(-np.clip(x, -500, 500)))
+
+
+def _logit_shift_normalize(probs, group_indices, target_sum=5.0):
+    """Shift probabilities in logit space so each group sums to target_sum.
+
+    High-confidence predictions are barely affected; uncertain predictions
+    absorb most of the adjustment.
+    """
+    result = probs.copy()
+    for indices in group_indices:
+        p = probs[indices]
+        logits = _logit(p)
+
+        def residual(c):
+            return _sigmoid(logits + c).sum() - target_sum
+
+        try:
+            c = brentq(residual, -20, 20, xtol=1e-8)
+        except ValueError:
+            c = 0.0
+
+        result[indices] = _sigmoid(logits + c)
+    return result
+
+
+def predict_lineup_probabilities(
+    game_data: dict,
+    model_path: Optional[Path] = None,
+    normalize: bool = True,
+) -> Optional[pd.DataFrame]:
+    """Predict P(on_court) for each player at each play using trained model.
+
+    Returns a DataFrame with columns:
+        sequence_number, team_id, player_id, probability
+
+    Probabilities are normalized (logit-space shift) so they sum to 5.0
+    per team per play, unless normalize=False.
+
+    Args:
+        game_data: Raw game JSON dict.
+        model_path: Path to LightGBM model pickle. Defaults to bundled model.
+        normalize: Whether to apply logit-space normalization (sum to 5).
+
+    Returns:
+        DataFrame with per-player probabilities, or None if game can't be
+        processed.
+    """
+    from espn_data.lineup_features import extract_features, FEATURE_NAMES, N_FEATURES
+
+    if model_path is None:
+        model_path = Path(__file__).parent / "lineup_model_v2.pkl"
+
+    if not model_path.exists():
+        logger.warning(f"Model not found at {model_path}, falling back to HMM")
+        return None
+
+    model = _load_model(model_path)
+
+    # Extract features without labels
+    result = extract_features(game_data, include_labels=False)
+    if result[0] is None:
+        return None
+
+    X, metadata = result
+    if X.shape[1] != N_FEATURES:
+        logger.warning(f"Feature count mismatch: got {X.shape[1]}, expected {N_FEATURES}")
+        return None
+
+    # Model inference
+    probs = model.predict_proba(X)[:, 1]
+
+    # Build DataFrame
+    df = pd.DataFrame(metadata, columns=["sequence_number", "team_id", "player_id"])
+    df["probability"] = probs
+
+    # Logit-space normalization: sum to 5 per (sequence_number, team_id)
+    if normalize:
+        group_indices = []
+        for _, group_df in df.groupby(["sequence_number", "team_id"]):
+            group_indices.append(group_df.index.values)
+
+        df["probability"] = _logit_shift_normalize(
+            df["probability"].values, group_indices, target_sum=5.0,
+        )
+
+    return df
