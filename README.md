@@ -139,6 +139,42 @@ For each game, the following data types are extracted:
 - **Play-by-Play**: Detailed play-by-play data
 - **Officials**: Information about referees/officials
 
+## Lineup Tracking
+
+`espn_data/lineups.py` recovers the 5 players on court for each team at every play. ESPN started recording explicit substitution events in 2025; for earlier games (and the ~5% of recent games where sub data is missing or broken) the lineup must be inferred from player appearances and box-score minutes.
+
+Three approaches are exposed:
+
+| Function | When to use | Output |
+|---|---|---|
+| `track_lineups_ground_truth(game_data)` | 2025+ games with `Substitution` events | DataFrame; `None` if no sub events |
+| `track_lineups_heuristic(game_data)` | Any game; deterministic best-effort | DataFrame |
+| `track_lineups_hmm(game_data)` | Any game; probabilistic forward-backward inference with minutes-budget constraints | DataFrame |
+| `predict_lineup_probabilities(game_data)` | Per-player `P(on_court)`, normalized to sum to 5.0 per team-play | Long DataFrame: `sequence_number, team_id, player_id, probability` |
+
+The model behind `predict_lineup_probabilities()` is a LightGBM classifier (99 features, trained on 500 games / 3.15M observations) bundled at `espn_data/lineup_model_v2.pkl`. Probabilities are normalized via a logit-space shift so each `(play, team)` group sums to exactly 5.0 — high-confidence predictions are preserved while uncertain ones absorb the adjustment.
+
+**Quality (500 games, game-level GroupKFold(5)):**
+- Raw per-observation Brier: **0.0716**
+- After logit-shift normalization: **~0.0694**
+
+**Example:**
+
+```python
+from espn_data.lineups import load_game, predict_lineup_probabilities
+
+game = load_game("data/raw/mens/2026/games/401804830.json")
+df = predict_lineup_probabilities(game)
+# df: (n_plays * n_players_per_team * 2) rows
+# Each (sequence_number, team_id) group sums to 5.0
+
+# Top-5 lineup for a given play:
+play_df = df[(df.sequence_number == seq) & (df.team_id == tid)]
+on_court = play_df.nlargest(5, "probability")["player_id"].tolist()
+```
+
+Smoke tests live in `tests/test_lineups.py`.
+
 ## Performance Tips
 
 - Use `--concurrency` and `--delay` to balance between speed and avoiding rate limits
